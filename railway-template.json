@@ -1,0 +1,65 @@
+{
+  "name": "IMDb Ratings for Stremio",
+  "description": "Complete IMDb ratings solution for Stremio with API and addon",
+  "repository": "your-github-username/imdb-ratings-stremio",
+  "services": [
+    {
+      "name": "ratings-api",
+      "serviceName": "ratings-api",
+      "source": {
+        "type": "dockerfile",
+        "dockerfile": "imdb-ratings-api/Dockerfile"
+      },
+      "variables": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "PORT",
+          "value": "3001"
+        }
+      ],
+      "volumes": [
+        {
+          "name": "ratings_data",
+          "mountPath": "/app/data"
+        },
+        {
+          "name": "ratings_db", 
+          "mountPath": "/app/db"
+        }
+      ]
+    },
+    {
+      "name": "stremio-addon",
+      "serviceName": "stremio-addon",
+      "source": {
+        "type": "dockerfile",
+        "dockerfile": "stremio-ratings/Dockerfile"
+      },
+      "variables": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "RATINGS_API_URL",
+          "value": "${{ratings-api.RAILWAY_PRIVATE_DOMAIN}}"
+        }
+      ]
+    }
+  ],
+  "volumes": [
+    {
+      "name": "ratings_data"
+    },
+    {
+      "name": "ratings_db"
+    }
+  ]
+}

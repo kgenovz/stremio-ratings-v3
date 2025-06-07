@@ -1,0 +1,28 @@
+{
+  "name": "stremio-imdb-ratings",
+  "version": "2.0.0",
+  "description": "Stremio addon for IMDb ratings",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "stremio",
+    "addon",
+    "imdb",
+    "ratings",
+    "movies",
+    "tv"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

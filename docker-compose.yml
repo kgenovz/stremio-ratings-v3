@@ -1,0 +1,55 @@
+# Docker Compose for IMDb Ratings System
+version: '3.8'
+
+services:
+  ratings-api:
+    build:
+      context: ./imdb-ratings-api
+      dockerfile: Dockerfile
+    container_name: imdb-ratings-api
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    volumes:
+      - ratings_data:/app/data
+      - ratings_db:/app/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  stremio-addon:
+    build:
+      context: ./stremio-ratings
+      dockerfile: Dockerfile
+    container_name: stremio-ratings-addon
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - RATINGS_API_URL=http://ratings-api:3001
+    depends_on:
+      ratings-api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  ratings_data:
+    driver: local
+  ratings_db:
+    driver: local
+
+networks:
+  default:
+    name: imdb-ratings-network

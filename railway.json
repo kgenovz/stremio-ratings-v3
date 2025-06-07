@@ -1,0 +1,35 @@
+{
+  "services": {
+    "ratings-api": {
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "imdb-ratings-api/Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "node ratings-api-server.js",
+        "healthcheckPath": "/health",
+        "healthcheckTimeout": 300
+      },
+      "variables": {
+        "NODE_ENV": "production",
+        "PORT": 3001
+      }
+    },
+    "stremio-addon": {
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "stremio-ratings/Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "node index.js",
+        "healthcheckPath": "/health",
+        "healthcheckTimeout": 100
+      },
+      "variables": {
+        "NODE_ENV": "production",
+        "PORT": 3000,
+        "RATINGS_API_URL": "${{ratings-api.RAILWAY_PRIVATE_DOMAIN}}"
+      }
+    }
+  }
+}

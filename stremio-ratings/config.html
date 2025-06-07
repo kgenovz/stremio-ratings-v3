@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMDb Ratings Configuration</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: #ffffff;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #7b68ee;
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 2.5rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        h3 {
+            color: #e0e0e0;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+            border-bottom: 2px solid #7b68ee;
+            padding-bottom: 0.5rem;
+        }
+
+        .config {
+            background: linear-gradient(145deg, #2a2a2a, #363636);
+            padding: 25px;
+            border-radius: 12px;
+            margin: 25px 0;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            border: 1px solid #404040;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .config:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+        }
+
+        .form-group {
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .form-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #7b68ee;
+            cursor: pointer;
+        }
+
+        input[type="text"], select {
+            padding: 12px 16px;
+            margin: 5px;
+            background: #404040;
+            color: #ffffff;
+            border: 2px solid #555555;
+            border-radius: 8px;
+            width: 220px;
+            font-size: 14px;
+            transition: border-color 0.3s ease, background-color 0.3s ease;
+        }
+
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: #7b68ee;
+            background: #4a4a4a;
+            box-shadow: 0 0 0 3px rgba(123, 104, 238, 0.1);
+        }
+
+        input[type="text"]:hover, select:hover {
+            border-color: #888888;
+        }
+
+        button {
+            background: linear-gradient(145deg, #7b68ee, #6a5acd);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 8px 5px;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(123, 104, 238, 0.3);
+        }
+
+        button:hover {
+            background: linear-gradient(145deg, #6a5acd, #5a4fcf);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(123, 104, 238, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 10px rgba(123, 104, 238, 0.3);
+        }
+
+        .url {
+            background: #333333;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+            margin: 15px 0;
+            font-size: 13px;
+            border-left: 4px solid #7b68ee;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .url:hover {
+            background: #3a3a3a;
+        }
+
+        .preview {
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-line;
+            margin: 15px 0;
+            border: 1px solid #555555;
+            min-height: 120px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .settings-grid {
+            display: grid;
+            gap: 15px;
+        }
+
+        .copy-button {
+            background: #4a4a4a;
+            color: #ffffff;
+            padding: 8px 12px;
+            border: 1px solid #666666;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+            transition: all 0.2s ease;
+        }
+
+        .copy-button:hover {
+            background: #555555;
+            border-color: #7b68ee;
+        }
+
+        .info-box {
+            background: rgba(123, 104, 238, 0.1);
+            border: 1px solid rgba(123, 104, 238, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+
+        .info-box strong {
+            color: #7b68ee;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 15px;
+            }
+            
+            .config {
+                padding: 20px;
+            }
+            
+            input[type="text"], select {
+                width: 100%;
+                max-width: none;
+            }
+            
+            .form-group {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>🎬 IMDb Ratings Configuration</h1>
+    
+    <div class="info-box">
+        <strong>Welcome!</strong> Configure your IMDb ratings addon below. You can customize how ratings are displayed and install the addon directly to Stremio.
+    </div>
+    
+    <div class="config">
+        <h3>🚀 Quick Install (Default Settings)</h3>
+        <div class="url">{{BASE_URL}}/manifest.json</div>
+        <button onclick="installDefault()">📱 Install Default Version</button>
+        <button class="copy-button" onclick="copyToClipboard('{{BASE_URL}}/manifest.json')">📋 Copy URL</button>
+    </div>
+    
+    <div class="config">
+        <h3>⚙️ Custom Settings</h3>
+        <div class="settings-grid">
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="showVotes" checked>
+                    <span>Show vote counts in ratings display</span>
+                </label>
+            </div>
+            
+            <div class="form-group">
+                <label>
+                    Display Format:
+                    <select id="format">
+                        <option value="multiline">Multi-line (Detailed)</option>
+                        <option value="singleline">Single line (Compact)</option>
+                    </select>
+                </label>
+            </div>
+            
+            <div class="form-group">
+                <label>
+                    Stream Name:
+                    <input type="text" id="streamName" value="IMDb Rating" placeholder="Enter custom stream name">
+                </label>
+            </div>
+        </div>
+    </div>
+    
+    <div class="config">
+        <h3>👁️ Live Preview</h3>
+        <div class="preview" id="preview">Loading preview...</div>
+    </div>
+    
+    <div class="config">
+        <h3>🔗 Install Custom Version</h3>
+        <div class="url" id="manifestUrl">Generating URL...</div>
+        <button onclick="installCustom()">📱 Install Custom Version</button>
+        <button class="copy-button" onclick="copyToClipboard(document.getElementById('manifestUrl').textContent)">📋 Copy URL</button>
+    </div>
+    
+    <div class="info-box">
+        <strong>How to install:</strong> Click the install button to open Stremio automatically, or copy the URL and paste it into Stremio's addon installation page.
+    </div>
+
+    <script>
+        const BASE_URL = '{{BASE_URL}}';
+        let currentConfig = null;
+        
+        function updatePreview() {
+            const showVotes = document.getElementById('showVotes').checked;
+            const format = document.getElementById('format').value;
+            const streamName = document.getElementById('streamName').value || 'IMDb Rating';
+            
+            // Build config object
+            const config = {
+                showVotes: showVotes,
+                format: format,
+                streamName: streamName
+            };
+            
+            currentConfig = config;
+            
+            // Generate preview text
+            const votesText = showVotes ? ' (45,123 votes)' : '';
+            let preview;
+            
+            if (format === 'singleline') {
+                preview = `📊 ${streamName}\n⭐ IMDb: 9.3/10${votesText}`;
+            } else {
+                preview = `📊 ${streamName}\n───────────────\n⭐ IMDb        : 9.3/10\n${votesText}\n(Episode Rating)\n───────────────`;
+            }
+            
+            document.getElementById('preview').textContent = preview;
+            
+            // Generate manifest URL with config
+            const configStr = encodeURIComponent(JSON.stringify(config));
+            const url = `${BASE_URL}/manifest.json?config=${configStr}`;
+            
+            document.getElementById('manifestUrl').textContent = url;
+        }
+        
+        function installDefault() {
+            const stremioUrl = `stremio://${BASE_URL}/manifest.json`;
+            window.open(stremioUrl, '_blank');
+        }
+        
+        function installCustom() {
+            if (currentConfig) {
+                const configStr = encodeURIComponent(JSON.stringify(currentConfig));
+                const stremioUrl = `stremio://${BASE_URL}/manifest.json?config=${configStr}`;
+                window.open(stremioUrl, '_blank');
+            }
+        }
+        
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Visual feedback
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = '✅ Copied!';
+                button.style.background = '#28a745';
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = '';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            });
+        }
+        
+        // Event listeners
+        document.getElementById('showVotes').addEventListener('change', updatePreview);
+        document.getElementById('format').addEventListener('change', updatePreview);
+        document.getElementById('streamName').addEventListener('input', updatePreview);
+        
+        // Initialize preview
+        updatePreview();
+        
+        // Auto-focus on stream name input for better UX
+        document.getElementById('streamName').addEventListener('focus', function() {
+            this.select();
+        });
+    </script>
+</body>
+</html>
