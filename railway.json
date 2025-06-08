@@ -1,34 +1,23 @@
 {
-  "services": {
-    "ratings-api": {
-      "build": {
-        "builder": "DOCKERFILE",
-        "dockerfilePath": "imdb-ratings-api/Dockerfile"
-      },
-      "deploy": {
-        "startCommand": "node ratings-api-server.js",
-        "healthcheckPath": "/health",
-        "healthcheckTimeout": 300
-      },
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
+  },
+  "deploy": {
+    "startCommand": "./start-services.sh",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 300,
+    "numReplicas": 1,
+    "sleepApplication": false,
+    "restartPolicyType": "ON_FAILURE"
+  },
+  "environments": {
+    "production": {
       "variables": {
         "NODE_ENV": "production",
-        "PORT": 3001
-      }
-    },
-    "stremio-addon": {
-      "build": {
-        "builder": "DOCKERFILE",
-        "dockerfilePath": "stremio-ratings/Dockerfile"
-      },
-      "deploy": {
-        "startCommand": "node index.js",
-        "healthcheckPath": "/health",
-        "healthcheckTimeout": 100
-      },
-      "variables": {
-        "NODE_ENV": "production",
-        "PORT": 3000,
-        "RATINGS_API_URL": "${{ratings-api.RAILWAY_PRIVATE_DOMAIN}}"
+        "PORT": "3000",
+        "API_PORT": "3001"
       }
     }
   }
