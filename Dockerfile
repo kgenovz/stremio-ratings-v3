@@ -1,11 +1,8 @@
-# Single Dockerfile for Railway - Runs Both Services
+# Simplified Dockerfile for Railway - No PM2, just background + foreground processes
 FROM node:18-alpine
 
-# Install curl and process manager
+# Install curl for healthchecks
 RUN apk add --no-cache curl
-
-# Install PM2 globally for process management
-RUN npm install -g pm2
 
 # Set working directory
 WORKDIR /app
@@ -39,12 +36,12 @@ RUN chown -R node:node /app
 # Switch to non-root user
 USER node
 
-# Expose both ports
-EXPOSE 3000 3001
+# Expose ports
+EXPOSE 8080 3001
 
-# Health check for the addon (main service)
+# Health check for the main process (addon)
 HEALTHCHECK --interval=60s --timeout=30s --start-period=300s --retries=5 \
-  CMD curl -f http://localhost:3000/health || exit 1
+  CMD curl -f http://localhost:8080/health || exit 1
 
-# Start both services with PM2
+# Start services (addon runs in foreground)
 CMD ["./start-services.sh"]

@@ -1,73 +1,48 @@
 #!/bin/sh
-# start-services.sh - Starts both services with PM2
+# start-services.sh - Simplified: Start API in background, addon in foreground
 
 echo "🚀 Starting IMDb Ratings Services..."
 
-# Kill any existing PM2 processes to avoid conflicts
-pm2 kill
-
-# Start the API service first (internal port 3001)
+# Start API in background
 echo "📊 Starting Ratings API on port 3001..."
 cd /app/api
-pm2 start ratings-api-server.js --name "ratings-api" --no-daemon=false -- --port=3001
+PORT=3001 node ratings-api-server.js &
+API_PID=$!
 
 # Wait for API to be ready
 echo "⏳ Waiting for API to be ready..."
-sleep 15
+sleep 20
 
-# Start the Stremio addon with explicit port
-echo "🎬 Starting Stremio Addon on port 3000..."
-cd /app/addon
-
-# Create a PM2 ecosystem file for better control
-cat > ecosystem.config.js << EOF
-module.exports = {
-  apps: [{
-    name: 'stremio-addon',
-    script: 'index.js',
-    env: {
-      PORT: 3000,
-      RATINGS_API_URL: 'http://localhost:3001',
-      NODE_ENV: 'production'
-    }
-  }]
-}
-EOF
-
-pm2 start ecosystem.config.js --no-daemon=false
-
-# Wait a moment for addon to start
-sleep 10
-
-# Show status
-echo "📋 Service Status:"
-pm2 list
-
-# Test internal connectivity with retries
-echo "🔍 Testing internal connectivity..."
+# Test API readiness
 for i in 1 2 3 4 5; do
   if curl -f http://localhost:3001/health > /dev/null 2>&1; then
     echo "✅ API ready on port 3001"
     break
   else
     echo "⏳ API not ready yet (attempt $i/5)..."
-    sleep 5
+    sleep 10
   fi
 done
 
-for i in 1 2 3 4 5; do
-  if curl -f http://localhost:3000/health > /dev/null 2>&1; then
-    echo "✅ Addon ready on port 3000"
-    break
-  else
-    echo "⏳ Addon not ready yet (attempt $i/5)..."
-    sleep 5
-  fi
-done
+# Start addon in foreground (main process for Railway)
+echo "🎬 Starting Stremio Addon on port 8080..."
+cd /app/addon
+export PORT=8080
+export RATINGS_API_URL=http://localhost:3001
+export NODE_ENV=production
 
-echo "🌐 Railway should expose port 3000 (Stremio Addon)"
-echo "📊 API accessible internally at localhost:3001"
+# Function to cleanup on exit
+cleanup() {
+    echo "🛑 Shutting down services..."
+    kill $API_PID 2>/dev/null
+    exit 0
+}
 
-# Keep container alive by following logs
-echo "📝 Following service logs..."
-pm2 logs
+# Set trap for cleanup
+trap cleanup SIGTERM SIGINT
+
+echo "🌐 Addon will be available on port 8080"
+echo "📊 API running in background on port 3001"
+
+# Run addon in foreground (Railway monitors this process)
+exec node index.js
