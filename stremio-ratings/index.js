@@ -133,7 +133,7 @@ class Utils {
 
 // NEW: Anime Mapping Service
 class AnimeService {
-    // Simplified Kitsu to IMDb mapping
+    // Enhanced Kitsu to IMDb mapping with multiple search strategies
     static async getImdbFromKitsu(kitsuId) {
         try {
             console.log(`Auto-mapping Kitsu ID ${kitsuId} to IMDb...`);
@@ -148,20 +148,57 @@ class AnimeService {
             }
 
             const attrs = kitsuResponse.data.attributes;
-            const animeTitle = attrs.canonicalTitle || attrs.titles?.en || attrs.titles?.en_jp;
+            const allTitles = [
+                attrs.canonicalTitle,
+                attrs.titles?.en,
+                attrs.titles?.en_jp,
+                attrs.titles?.en_us,
+                attrs.titles?.ja_jp
+            ].filter(Boolean);
 
-            if (!animeTitle) {
-                console.log(`No title found for Kitsu ID: ${kitsuId}`);
+            if (allTitles.length === 0) {
+                console.log(`No titles found for Kitsu ID: ${kitsuId}`);
                 return null;
             }
 
-            console.log(`Found anime: "${animeTitle}"`);
+            console.log(`Found anime titles:`, allTitles);
 
-            // Search IMDb using the title
-            const letter = animeTitle.slice(0, 1).toLowerCase();
-            const query = encodeURIComponent(animeTitle.trim());
+            // Try multiple search strategies
+            for (const title of allTitles) {
+                const result = await this.searchImdbByTitle(title);
+                if (result) {
+                    console.log(`Auto-mapped: ${kitsuId} → ${result} (${title})`);
+                    return result;
+                }
+
+                // Try without season/part info
+                const cleanTitle = title.replace(/[:\-]\s*(season|part|vol|volume|第\d+期)\s*\d*/gi, '').trim();
+                if (cleanTitle !== title) {
+                    console.log(`Trying clean title: "${cleanTitle}"`);
+                    const cleanResult = await this.searchImdbByTitle(cleanTitle);
+                    if (cleanResult) {
+                        console.log(`Auto-mapped with clean title: ${kitsuId} → ${cleanResult} (${cleanTitle})`);
+                        return cleanResult;
+                    }
+                }
+            }
+
+            console.log(`No IMDb mapping found for any title variants`);
+            return null;
+
+        } catch (error) {
+            console.error(`Error auto-mapping Kitsu ID ${kitsuId}:`, error);
+            return null;
+        }
+    }
+
+    static async searchImdbByTitle(title) {
+        try {
+            const letter = title.slice(0, 1).toLowerCase();
+            const query = encodeURIComponent(title.trim());
             const imdbUrl = `https://v2.sg.media-imdb.com/suggestion/${letter}/${query}.json`;
 
+            console.log(`Searching IMDb for: "${title}"`);
             const imdbResponse = await Utils.makeRequest(imdbUrl);
             
             if (imdbResponse?.d?.length > 0) {
@@ -170,17 +207,16 @@ class AnimeService {
                 );
                 
                 if (candidates.length > 0) {
-                    const imdbId = candidates[0].id;
-                    console.log(`Auto-mapped: ${kitsuId} → ${imdbId} (${animeTitle})`);
-                    return imdbId;
+                    console.log(`Found IMDb candidates:`, candidates.map(c => `${c.l} (${c.id})`));
+                    return candidates[0].id;
                 }
             }
 
-            console.log(`No IMDb mapping found for: "${animeTitle}"`);
+            console.log(`No IMDb results for: "${title}"`);
             return null;
 
         } catch (error) {
-            console.error(`Error auto-mapping Kitsu ID ${kitsuId}:`, error);
+            console.error(`Error searching IMDb for "${title}":`, error);
             return null;
         }
     }
