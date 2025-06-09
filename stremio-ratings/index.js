@@ -1,7 +1,7 @@
 const https = require('https');
 const http = require('http');
-const fs = require('fs');
-const path = require('path');
+const fs = require('fs');  // ADD THIS BACK
+const path = require('path');  // ADD THIS BACK
 
 // Constants
 const RATINGS_API_URL = process.env.RATINGS_API_URL || 'http://localhost:3001';
@@ -11,454 +11,448 @@ const DEFAULT_CONFIG = {
     streamName: 'IMDb Rating'
 };
 
-// Utility Functions
-class Utils {
-    static parseConfig(configStr) {
-        if (!configStr) return DEFAULT_CONFIG;
+function setCORSHeaders(res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Accept, Authorization, X-API-Key');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+}
+
+function parseConfig(configStr) {
+    if (!configStr) return DEFAULT_CONFIG;
+    try {
+        const parsed = JSON.parse(configStr);
+        return { ...DEFAULT_CONFIG, ...parsed };
+    } catch (e) {
+        console.error('Error parsing config:', e);
+        return DEFAULT_CONFIG;
+    }
+}
+
+function makeRequest(url) {
+    return new Promise((resolve, reject) => {
+        const protocol = url.startsWith('https:') ? https : http;
         
-        try {
-            const parsed = JSON.parse(configStr);
-            return { ...DEFAULT_CONFIG, ...parsed };
-        } catch (e) {
-            console.error('Error parsing config:', e);
-            return DEFAULT_CONFIG;
-        }
-    }
-
-    static setCORSHeaders(res) {
-        const headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'X-Requested-With, Content-Type, Accept, Authorization, X-API-Key',
-            'Access-Control-Max-Age': '86400',
-            'Cache-Control': 'public, max-age=3600',
-            'Vary': 'Origin'
-        };
-
-        Object.entries(headers).forEach(([key, value]) => {
-            res.setHeader(key, value);
-        });
-    }
-
-    static makeRequest(url) {
-        return new Promise((resolve, reject) => {
-            const protocol = url.startsWith('https:') ? https : http;
-            
-            protocol.get(url, (res) => {
-                let data = '';
-                res.on('data', (chunk) => data += chunk);
-                res.on('end', () => {
-                    try {
-                        resolve(JSON.parse(data));
-                    } catch (e) {
-                        resolve(null);
-                    }
-                });
-            }).on('error', reject);
-        });
-    }
-
-    static parseUrl(req) {
-        const host = req.headers['x-forwarded-host'] || req.headers.host || 
-                     process.env.VERCEL_URL || 'localhost:3000';
-        const protocol = host.includes('localhost') ? 'http' : 'https';
-        const baseUrl = `${protocol}://${host}`;
-
-        try {
-            const url = new URL(req.url, baseUrl);
-            return {
-                url,
-                pathname: url.pathname,
-                searchParams: url.searchParams,
-                baseUrl
-            };
-        } catch (e) {
-            console.error('Error parsing URL:', e);
-            const [path, query = ''] = req.url.split('?');
-            return {
-                pathname: path,
-                searchParams: new URLSearchParams(query),
-                baseUrl
-            };
-        }
-    }
-
-    static cleanPathname(pathname) {
-        const cleaned = pathname.replace(/^\/(api|stremio)/, '');
-        return cleaned.startsWith('/') ? cleaned : '/' + cleaned;
-    }
+        protocol.get(url, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+                try {
+                    resolve(JSON.parse(data));
+                } catch (e) {
+                    console.error("Failed to parse JSON response:", e);
+                    resolve(null);
+                }
+            });
+        }).on('error', reject);
+    });
 }
 
-// Rating Service
-class RatingService {
-    static async getRating(imdbId) {
-        try {
-            const url = `${RATINGS_API_URL}/api/rating/${imdbId}`;
-            console.log(`Fetching rating from local dataset:`, url);
-            
-            const data = await Utils.makeRequest(url);
-            console.log('Local API response:', data);
-            
-            if (data?.rating && !data.error) {
-                return {
-                    rating: data.rating,
-                    votes: data.votes || '0',
-                    id: data.id,
-                    type: data.type || 'direct'
-                };
-            }
-            
-            console.log('⚠️ No rating found in local dataset');
-            return null;
-        } catch (error) {
-            console.error('Error fetching from local dataset:', error);
-            return null;
-        }
-    }
+function parseContentId(id) {
+    const decodedId = decodeURIComponent(id);
+    console.log('Parsing content ID:', decodedId);
 
-    static async getEpisodeRating(seriesId, season, episode) {
-        try {
-            const url = `${RATINGS_API_URL}/api/episode/${seriesId}/${season}/${episode}`;
-            console.log(`Fetching episode rating from local dataset:`, url);
-            
-            const data = await Utils.makeRequest(url);
-            console.log('Episode API response:', data);
-            
-            if (data?.rating && !data.error) {
-                return {
-                    rating: data.rating,
-                    votes: data.votes || '0',
-                    episodeId: data.episodeId,
-                    type: 'episode'
-                };
-            }
-            
-            console.log('⚠️ No episode rating found in local dataset');
-            return null;
-        } catch (error) {
-            console.error('Error fetching episode from local dataset:', error);
-            return null;
-        }
-    }
-}
-
-// Manifest Service
-class ManifestService {
-    static generate(config = DEFAULT_CONFIG) {
+    // Enhanced Kitsu format: support both simple and three-segment formats
+    const kitsuMatch = decodedId.match(/^kitsu:(?:anime|movie|manga|)?(\d+)(?::(\d+))?$/);
+    if (kitsuMatch) {
+        const [, kitsuId, episode] = kitsuMatch;
+        console.log(`Matched Kitsu ID: ${kitsuId}, Episode: ${episode || 'N/A'}`);
         return {
-            id: 'imdb.ratings.local',
-            version: '2.0.0',
-            name: 'IMDb Ratings',
-            description: 'Shows IMDb ratings for movies and individual TV episodes',
-            resources: ['stream'],
-            types: ['movie', 'series'],
-            catalogs: [],
-            idPrefixes: ['tt'],
-            behaviorHints: {
-                configurable: true,
-                configurationRequired: false
-            }
+            platform: 'kitsu',
+            kitsuId: kitsuId,
+            episode: episode ? parseInt(episode) : null,
+            season: episode ? 1 : null,
+            type: episode ? 'series' : 'movie',
+            originalId: decodedId,
+            needsMapping: true
         };
+    }
+
+    // Standard IMDb format
+    const imdbMatch = decodedId.match(/^(tt\d+)(?::(\d+):(\d+))?$/);
+    if (imdbMatch) {
+        const [, imdbId, season, episode] = imdbMatch;
+        const isSeries = season && episode;
+        console.log(`Matched IMDb ID: ${imdbId}, Season: ${season || 'N/A'}, Episode: ${episode || 'N/A'}`);
+        return {
+            platform: 'imdb',
+            imdbId: imdbId,
+            season: isSeries ? parseInt(season) : null,
+            episode: isSeries ? parseInt(episode) : null,
+            type: isSeries ? 'series' : 'movie',
+            originalId: decodedId,
+            needsMapping: false
+        };
+    }
+
+    console.warn('Could not parse ID format:', decodedId);
+    return null;
+}
+
+// Simplified Kitsu to IMDb mapping
+async function getImdbFromKitsu(kitsuId) {
+    try {
+        console.log(`Auto-mapping Kitsu ID ${kitsuId} to IMDb...`);
+        
+        // Get anime metadata from Kitsu
+        const kitsuUrl = `https://kitsu.io/api/edge/anime/${kitsuId}`;
+        const kitsuResponse = await makeRequest(kitsuUrl);
+        
+        if (!kitsuResponse?.data?.attributes) {
+            console.log(`No Kitsu metadata found for ID: ${kitsuId}`);
+            return null;
+        }
+        
+        const attrs = kitsuResponse.data.attributes;
+        const animeTitle = attrs.canonicalTitle || attrs.titles?.en || attrs.titles?.en_jp;
+        
+        if (!animeTitle) {
+            console.log(`No title found for Kitsu ID: ${kitsuId}`);
+            return null;
+        }
+        
+        console.log(`Found anime: "${animeTitle}"`);
+        
+        // Search IMDb using the title
+        const letter = animeTitle.slice(0, 1).toLowerCase();
+        const query = encodeURIComponent(animeTitle.trim());
+        const imdbUrl = `https://v2.sg.media-imdb.com/suggestion/${letter}/${query}.json`;
+        
+        const imdbResponse = await makeRequest(imdbUrl);
+        
+        if (imdbResponse?.d?.length > 0) {
+            const candidates = imdbResponse.d.filter(item => 
+                item.q === 'TV series' || item.q === 'TV movie' || item.q === 'video'
+            );
+            
+            if (candidates.length > 0) {
+                const imdbId = candidates[0].id;
+                console.log(`Auto-mapped: ${kitsuId} → ${imdbId} (${animeTitle})`);
+                return imdbId;
+            }
+        }
+        
+        console.log(`No IMDb mapping found for: "${animeTitle}"`);
+        return null;
+        
+    } catch (error) {
+        console.error(`Error auto-mapping Kitsu ID ${kitsuId}:`, error);
+        return null;
     }
 }
 
-// Stream Service
-class StreamService {
-    static formatRatingDisplay(ratingData, config, type = 'episode') {
-        const { rating, votes } = ratingData;
-        const { showVotes, format, streamName } = config;
+async function getRating(imdbId) {
+    if (!imdbId) return null;
+    
+    try {
+        const url = `${RATINGS_API_URL}/api/rating/${imdbId}`;
+        console.log(`Fetching rating: ${url}`);
         
-        const votesText = showVotes && votes ? ` (${votes} votes)` : '';
-        
-        if (format === 'singleline') {
+        const data = await makeRequest(url);
+        if (data?.rating && !data.error) {
             return {
-                name: streamName,
-                description: `⭐ IMDb: ${rating}/10${votesText}`,
+                rating: data.rating,
+                votes: data.votes || '0',
+                id: data.id,
+                type: data.type || 'direct'
             };
         }
         
-        const lines = [
-            "───────────────",
-            `⭐ IMDb        : ${rating}/10`,
-            `${votesText}`,
-            "───────────────"
-        ];
+        console.log('No rating found for', imdbId);
+        return null;
+    } catch (error) {
+        console.error('Error fetching rating:', error);
+        return null;
+    }
+}
+
+async function getEpisodeRating(seriesId, season, episode) {
+    if (!seriesId || !season || !episode) return null;
+    
+    try {
+        const url = `${RATINGS_API_URL}/api/episode/${seriesId}/${season}/${episode}`;
+        console.log(`Fetching episode rating: ${url}`);
         
-        const typeIndicators = {
-            episode: "(Episode Rating)",
-            series_fallback: "(Series Rating)"
-        };
-        
-        if (typeIndicators[type]) {
-            lines.splice(2, 0, typeIndicators[type]);
+        const data = await makeRequest(url);
+        if (data?.rating && !data.error) {
+            return {
+                rating: data.rating,
+                votes: data.votes || '0',
+                episodeId: data.episodeId,
+                type: 'episode'
+            };
         }
         
+        console.log(`No episode rating found for ${seriesId} S${season}E${episode}`);
+        return null;
+    } catch (error) {
+        console.error('Error fetching episode rating:', error);
+        return null;
+    }
+}
+
+function createStream(name, description, originalId, imdbId = null, ratingData = null) {
+    return {
+        name: name,
+        description: description,
+        url: imdbId                                   // CRITICAL: must be url or infoHash
+             ? `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/`
+             : 'https://www.imdb.com/',               // harmless placeholder
+        behaviorHints: {
+            notWebReady: true,
+            bingeGroup: `ratings-${originalId}`
+        },
+        type: "other"
+    };
+}
+
+function formatVoteCount(votes) {
+    if (!votes || votes === '0') return '';
+    
+    const num = parseInt(votes.replace(/,/g, ''));
+    if (num >= 1000000) {
+        return `${(num / 1000000).toFixed(1)}M`;
+    } else if (num >= 1000) {
+        return `${Math.round(num / 1000)}K`;
+    }
+    return num.toString();
+}
+
+function formatRatingDisplay(ratingData, config, type = 'episode') {
+    const { rating, votes } = ratingData;
+    const { showVotes, format, streamName } = config;
+    const votesText = showVotes && votes ? ` ${formatVoteCount(votes)}` : '';
+
+    if (format === 'singleline') {
         return {
             name: streamName,
-            description: lines.join('\n')
+            description: `⭐ ${rating}/10${votesText}`,
         };
     }
 
-    static createStream(displayConfig, imdbId, id, ratingData = null) {
-        return {
-            name: displayConfig.name,
-            description: displayConfig.description,
-            externalUrl: `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/`,
-            behaviorHints: {
-                notWebReady: true,
-                bingeGroup: `ratings-${id}`
-            },
-            type: "other"
-        };
+    const lines = [
+        "───────────────",
+        `⭐ ${rating}/10`
+    ];
+    
+    // Add votes on separate line if enabled
+    if (showVotes && votes) {
+        lines.push(formatVoteCount(votes));
     }
+    
+    const typeIndicators = {
+        episode: "(Episode Rating)",
+        series_fallback: "(Series Rating)",
+        movie: "(Movie Rating)"
+    };
 
-    static async handleSeriesStreams(imdbId, season, episode, id, config) {
-        console.log(`Processing episode ${season}x${episode} for series ${imdbId}`);
+    if (typeIndicators[type]) {
+        lines.push(typeIndicators[type]);
+    }
+    
+    lines.push("───────────────");
+
+    return {
+        name: streamName,
+        description: lines.join('\n')
+    };
+}
+
+async function getStreams(type, id, config) {
+    console.log(`Stream request - Type: ${type}, ID: ${id}`);
+    
+    const parsedId = parseContentId(id);
+    if (!parsedId) {
+        console.log('Could not parse content ID:', id);
+        return [createStream(
+            config.streamName,
+            `⭐ IMDb Rating: Not Available\n(Could not parse ID format)`,
+            id
+        )];
+    }
+    
+    console.log('Parsed ID structure:', parsedId);
+
+    let imdbId = parsedId.imdbId;
+
+    // Handle Kitsu IDs using auto-mapping
+    if (parsedId.needsMapping && parsedId.platform === 'kitsu') {
+        console.log(`Kitsu content detected: ${parsedId.kitsuId}`);
         
-        // Try episode-specific rating first
-        let ratingData = await RatingService.getEpisodeRating(imdbId, season, episode);
+        imdbId = await getImdbFromKitsu(parsedId.kitsuId);
+        
+        if (!imdbId) {
+            console.log('No auto-mapping found');
+            return [createStream(
+                config.streamName,
+                `⭐ IMDb Rating: Not Available\n(Could not find IMDb mapping)`,
+                parsedId.originalId
+            )];
+        }
+        
+        console.log(`Successfully auto-mapped to IMDb: ${imdbId}`);
+    }
+    
+    let ratingData = null;
+    
+    // Handle series/episodes
+    if (parsedId.type === 'series' && parsedId.season && parsedId.episode) {
+        console.log(`Processing episode S${parsedId.season}E${parsedId.episode} for ${imdbId}`);
+        ratingData = await getEpisodeRating(imdbId, parsedId.season, parsedId.episode);
         
         // Fallback to series rating
         if (!ratingData) {
-            console.log('No episode rating found, trying series rating as fallback...');
-            ratingData = await RatingService.getRating(imdbId);
-            if (ratingData) {
-                ratingData.type = 'series_fallback';
-            }
+            console.log('No episode rating, trying series rating...');
+            ratingData = await getRating(imdbId);
+            if (ratingData) ratingData.type = 'series_fallback';
         }
-
-        if (ratingData) {
-            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type);
-            const stream = this.createStream(displayConfig, imdbId, id, ratingData);
-            console.log(`✅ Added ${ratingData.type} rating stream: ${ratingData.rating}/10`);
-            return [stream];
-        }
-
-        // No rating available
-        const displayConfig = this.formatRatingDisplay(
-            { rating: 'Not Available', votes: '' }, 
-            config
-        );
-        
-        const stream = this.createStream({
-            name: displayConfig.name,
-            description: displayConfig.description.replace(/⭐.*/, '⭐ IMDb Rating: Not Available')
-        }, imdbId, id);
-        
-        console.log('❌ Added "no rating" stream');
-        return [stream];
+    } else {
+        // Handle movies
+        console.log(`Processing movie: ${imdbId}`);
+        ratingData = await getRating(imdbId);
+        if (ratingData) ratingData.type = 'movie';
     }
 
-    static async handleMovieStreams(id, config) {
-        console.log(`Processing movie: ${id}`);
-        
-        const ratingData = await RatingService.getRating(id);
-        
-        if (ratingData) {
-            const displayConfig = this.formatRatingDisplay(ratingData, config, 'movie');
-            const stream = this.createStream(displayConfig, id, id, ratingData);
-            console.log(`✅ Added movie rating stream: ${ratingData.rating}/10`);
-            return [stream];
-        }
-
-        // No rating available
-        const displayConfig = this.formatRatingDisplay(
-            { rating: 'Not Available', votes: '' }, 
-            config
-        );
-        
-        const stream = this.createStream({
-            name: displayConfig.name,
-            description: displayConfig.description.replace(/⭐.*/, '⭐ IMDb Rating: Not Available')
-        }, id, id);
-        
-        console.log('❌ Added "no rating" stream for movie');
-        return [stream];
-    }
-
-    static async getStreams(type, id, config) {
-        const decodedId = decodeURIComponent(id);
-        console.log('Decoded ID:', decodedId);
-        
-        if (!['series', 'movie'].includes(type)) {
-            return [];
-        }
-
-        try {
-            if (type === 'series') {
-                const [imdbId, season, episode] = decodedId.split(':');
-                
-                if (!imdbId || !season || !episode) {
-                    console.log('Invalid series ID format:', decodedId);
-                    return [];
-                }
-                
-                return await this.handleSeriesStreams(imdbId, season, episode, decodedId, config);
-            } else {
-                return await this.handleMovieStreams(decodedId, config);
-            }
-        } catch (error) {
-            console.error('Error getting streams:', error);
-            return [];
-        }
+    // Create stream with rating or fallback
+    if (ratingData) {
+        const displayConfig = formatRatingDisplay(ratingData, config, ratingData.type);
+        console.log(`Added ${ratingData.type} rating stream: ${ratingData.rating}/10`);
+        return [createStream(displayConfig.name, displayConfig.description, parsedId.originalId, imdbId, ratingData)];
+    } else {
+        console.log('No rating data found');
+        return [createStream(
+            config.streamName,
+            '⭐ IMDb Rating: Not Available\n(Rating not found in dataset)',
+            parsedId.originalId,
+            imdbId
+        )];
     }
 }
 
-// HTML Service
-class HtmlService {
-    static getConfigTemplate() {
-        try {
-            const templatePath = path.join(__dirname, 'config.html');
-            return fs.readFileSync(templatePath, 'utf8');
-        } catch (error) {
-            console.error('Error reading config template:', error);
-            // Fallback to basic template if file not found
-            return this.getBasicTemplate();
-        }
+// Main handler
+module.exports = async (req, res) => {
+    setCORSHeaders(res);
+    
+    if (req.method === 'OPTIONS') {
+        res.statusCode = 204;
+        return res.end();
     }
 
-    static getBasicTemplate() {
-        return `<!DOCTYPE html>
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const pathname = url.pathname;
+    const searchParams = url.searchParams;
+    
+    console.log(`${req.method} ${pathname}`);
+    
+    try {
+        // Manifest - CRITICAL: Use flat format for compatibility
+        if (pathname === '/manifest.json') {
+            const manifest = {
+                id: 'imdb.ratings.universal',
+                version: '2.6.0',
+                name: 'Universal IMDb Ratings',
+                description: 'Shows IMDb ratings for movies, series, and anime',
+                resources: ['stream'],                    // CRITICAL: flat list
+                types: ['movie', 'series', 'anime'],     // top level
+                idPrefixes: ['tt', 'kitsu'],             // CRITICAL: now at top level
+                catalogs: [],
+                behaviorHints: {
+                    configurable: true,
+                    configurationRequired: false
+                }
+            };
+            
+            console.log('Returning manifest');
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify(manifest, null, 2));
+        }
+
+        // Health check
+        if (pathname === '/health') {
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+                status: 'OK',
+                time: new Date().toISOString(),
+                version: '2.6.0'
+            }));
+        }
+
+        // Stream requests
+        if (pathname.startsWith('/stream/')) {
+            const parts = pathname.split('/').filter(Boolean);
+            if (parts.length >= 3) {
+                const type = parts[1];
+                const id = parts[2].replace('.json', '');
+                
+                console.log(`Stream request: ${type}/${id}`);
+                
+                const configStr = searchParams.get('config');
+                const config = parseConfig(configStr);
+                
+                const streams = await getStreams(type, id, config);
+                
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ streams }, null, 2));
+            }
+        }
+
+        // Configure page - FIXED VERSION
+        if (pathname === '/configure') {
+            const baseUrl = `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`;
+            
+            // Try to read external config.html file first
+            try {
+                const configPath = path.join(__dirname, 'config.html');
+                const configTemplate = fs.readFileSync(configPath, 'utf8');
+                const html = configTemplate.replace(/\{\{BASE_URL\}\}/g, baseUrl);
+                res.setHeader('Content-Type', 'text/html');
+                return res.end(html);
+            } catch (error) {
+                console.log('External config.html not found, using built-in template');
+                
+                // Fallback to built-in template
+                const html = `<!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>IMDb Ratings Configuration</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a1a; color: white; }
-        .config { background: #2a2a2a; padding: 20px; border-radius: 8px; margin: 20px 0; }
-        button { background: #7b68ee; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
-        .url { background: #333; padding: 10px; border-radius: 4px; font-family: monospace; word-break: break-all; margin: 10px 0; }
-    </style>
+    <title>Universal IMDb Ratings</title>
+    <style>body{font-family:Arial;max-width:800px;margin:50px auto;padding:20px;background:#1a1a1a;color:white} .info{background:#2a4a2a;padding:15px;border-radius:8px;margin:20px 0} .url{background:#333;padding:10px;border-radius:4px;font-family:monospace;margin:10px 0}</style>
 </head>
 <body>
-    <h1>🎬 IMDb Ratings Configuration</h1>
-    <div class="config">
-        <h3>Default Installation</h3>
-        <div class="url">{{BASE_URL}}/manifest.json</div>
-        <button onclick="window.open('stremio://{{BASE_URL}}/manifest.json', '_blank')">Install</button>
+    <h1>🎬 Universal IMDb Ratings</h1>
+    
+    <div class="info">
+        <h3>✨ Features</h3>
+        <p>This addon provides IMDb ratings for content from any catalog:</p>
+        <ul>
+            <li>Movies and TV series from Cinemeta</li>
+            <li>Anime from Kitsu and other anime catalogs</li>
+            <li>Automatic mapping for non-IMDb content</li>
+            <li>Episode-specific ratings when available</li>
+        </ul>
     </div>
-    <script>console.log('Basic template loaded - place config.html in the same directory for full features');</script>
+    
+    <p><strong>Manifest URL:</strong></p>
+    <div class="url">${baseUrl}/manifest.json</div>
+    <button onclick="window.location.href='stremio://${baseUrl}/manifest.json'" style="background:#4CAF50;color:white;border:none;padding:15px 25px;border-radius:4px;cursor:pointer;font-size:16px;">Install Addon</button>
 </body>
 </html>`;
-    }
-
-    static generateConfigurePage(baseUrl) {
-        const template = this.getConfigTemplate();
-        return template.replace(/\{\{BASE_URL\}\}/g, baseUrl);
-    }
-}
-
-// Route Handlers
-class RouteHandler {
-    static async handleManifest(searchParams) {
-        const configStr = searchParams.get?.('config') || null;
-        const config = Utils.parseConfig(configStr);
-        return ManifestService.generate(config);
-    }
-
-    static async handleStream(pathname, searchParams) {
-        const pathParts = pathname.split('/').filter(Boolean);
-        const streamIndex = pathParts.indexOf('stream');
-        
-        if (streamIndex === -1 || pathParts.length < streamIndex + 3) {
-            throw new Error('Invalid stream request format');
+                res.setHeader('Content-Type', 'text/html');
+                return res.end(html);
+            }
         }
 
-        const type = pathParts[streamIndex + 1];
-        let id = pathParts[streamIndex + 2];
-        
-        if (id.endsWith('.json')) {
-            id = id.slice(0, -5);
-        }
-        
-        const configStr = searchParams.get?.('config') || null;
-        const config = Utils.parseConfig(configStr);
-        
-        console.log('Stream request with config:', config);
-        
-        const streams = await StreamService.getStreams(type, id, config);
-        console.log(`Returning ${streams.length} streams`);
-        
-        return { streams };
-    }
-
-    static handleHealth() {
-        return { 
-            status: 'OK', 
-            time: new Date().toISOString(),
-            version: '2.0.0',
-            ratingsAPI: RATINGS_API_URL
-        };
-    }
-
-    static handle404(pathname) {
-        return {
-            error: 'Not Found',
-            path: pathname,
-            availableEndpoints: [
-                '/manifest.json',
-                '/stream/{type}/{id}',
-                '/configure',
-                '/health'
-            ]
-        };
-    }
-}
-
-// Main Handler
-module.exports = async (req, res) => {
-    try {
-        Utils.setCORSHeaders(res);
-
-        if (req.method === 'OPTIONS') {
-            res.statusCode = 204;
-            return res.end();
-        }
-
-        const { pathname, searchParams, baseUrl } = Utils.parseUrl(req);
-        const cleanPath = Utils.cleanPathname(pathname);
-        
-        console.log(`Processing request: ${req.method} ${cleanPath}`);
-
-        // Handle configuration page
-        if (cleanPath === '/configure') {
-            res.setHeader('Content-Type', 'text/html; charset=utf-8');
-            return res.end(HtmlService.generateConfigurePage(baseUrl));
-        }
-
-        // Handle health check
-        if (cleanPath === '/health') {
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            const result = RouteHandler.handleHealth();
-            return res.end(JSON.stringify(result, null, 2));
-        }
-
-        // Handle addon routes
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-
-        if (cleanPath === '/manifest.json') {
-            const result = await RouteHandler.handleManifest(searchParams);
-            return res.end(JSON.stringify(result));
-        }
-
-        if (cleanPath.includes('/stream/')) {
-            const result = await RouteHandler.handleStream(cleanPath, searchParams);
-            return res.end(JSON.stringify(result));
-        }
-
-        // 404 handler
+        // 404
         res.statusCode = 404;
-        const result = RouteHandler.handle404(cleanPath);
-        return res.end(JSON.stringify(result));
+        res.setHeader('Content-Type', 'application/json');
+        return res.end(JSON.stringify({ error: 'Not Found' }));
 
     } catch (error) {
-        Utils.setCORSHeaders(res);
-        console.error('Uncaught error:', error);
-        
-        res.statusCode = error.message === 'Invalid stream request format' ? 404 : 500;
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        console.error('Error:', error);
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json');
         return res.end(JSON.stringify({
-            error: res.statusCode === 404 ? 'Not Found' : 'Server Error',
+            error: 'Internal Server Error',
             message: error.message
         }));
     }
@@ -467,13 +461,11 @@ module.exports = async (req, res) => {
 // Development server
 if (require.main === module) {
     const port = process.env.PORT || 3000;
-    
     const server = http.createServer(module.exports);
     
     server.listen(port, () => {
-        console.log(`🎬 IMDb Ratings addon running on port ${port}`);
-        console.log(`📋 Configuration page: http://localhost:${port}/configure`);
-        console.log(`📄 Default manifest: http://localhost:${port}/manifest.json`);
-        console.log(`🔗 Ratings API: ${RATINGS_API_URL}`);
+        console.log(`\nUniversal IMDb Ratings addon running on port ${port}`);
+        console.log(`Configure: http://localhost:${port}/configure`);
+        console.log(`Supports: Movies, TV Series, and Anime\n`);
     });
 }
