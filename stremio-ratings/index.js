@@ -458,23 +458,26 @@ class StreamService {
         // Try episode-specific rating first
         let ratingData = await RatingService.getEpisodeRating(imdbId, season, episode);
         
-        // Fallback to series rating
-        if (!ratingData) {
-            console.log('No episode rating found, trying series rating as fallback...');
-            ratingData = await RatingService.getRating(imdbId);
-            if (ratingData) {
-                ratingData.type = 'series_fallback';
-            }
-        }
-
+        // If we have episode rating, use it directly - no need for fallbacks
         if (ratingData) {
+            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type);
+            const stream = this.createStream(displayConfig, imdbId, id, ratingData);
+            console.log(`✅ Added episode rating stream: ${ratingData.rating}/10`);
+            return [stream];
+        }
+        
+        // Only try series fallback if no episode rating found
+        console.log('No episode rating found, trying series rating as fallback...');
+        ratingData = await RatingService.getRating(imdbId);
+        if (ratingData) {
+            ratingData.type = 'series_fallback';
             const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type);
             const stream = this.createStream(displayConfig, imdbId, id, ratingData);
             console.log(`✅ Added ${ratingData.type} rating stream: ${ratingData.rating}/10`);
             return [stream];
         }
 
-        // No rating available
+        // No rating available at all
         const displayConfig = this.formatRatingDisplay(
             { rating: 'Not Available', votes: '' }, 
             config
