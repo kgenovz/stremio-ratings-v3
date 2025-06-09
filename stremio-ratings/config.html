@@ -276,18 +276,6 @@
         const BASE_URL = '{{BASE_URL}}';
         let currentConfig = null;
         
-        function formatVoteCount(votes) {
-            if (!votes || votes === '0') return '';
-            
-            const num = parseInt(votes.toString().replace(/,/g, ''));
-            if (num >= 1000000) {
-                return `${(num / 1000000).toFixed(1)}M`;
-            } else if (num >= 1000) {
-                return `${Math.round(num / 1000)}K`;
-            }
-            return num.toString();
-        }
-        
         function updatePreview() {
             const showVotes = document.getElementById('showVotes').checked;
             const format = document.getElementById('format').value;
@@ -302,19 +290,14 @@
             
             currentConfig = config;
             
-            // Generate preview text with new format
-            const votesText = showVotes ? ` ${formatVoteCount('45123')}` : '';
+            // Generate preview text
+            const votesText = showVotes ? ' (45,123 votes)' : '';
             let preview;
             
             if (format === 'singleline') {
-                preview = `📊 ${streamName}\n⭐ 9.3/10${votesText}`;
+                preview = `📊 ${streamName}\n⭐ IMDb: 9.3/10${votesText}`;
             } else {
-                let multilinePreview = `📊 ${streamName}\n───────────────\n⭐ 9.3/10`;
-                if (showVotes) {
-                    multilinePreview += `\n${formatVoteCount('45123')}`;
-                }
-                multilinePreview += `\n(Episode Rating)\n───────────────`;
-                preview = multilinePreview;
+                preview = `📊 ${streamName}\n───────────────\n⭐ IMDb        : 9.3/10\n${votesText}\n(Episode Rating)\n───────────────`;
             }
             
             document.getElementById('preview').textContent = preview;
