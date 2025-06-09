@@ -221,7 +221,6 @@ class AnimeService {
                     console.log(`Found IMDb candidates:`, candidates.map(c => `${c.l} (${c.id}) [${c.q}]`));
                     
                     // Prioritize main series over episodes/specials
-                    // Look for exact title matches or series without episode-specific text
                     const mainSeries = candidates.find(c => {
                         const candidateTitle = c.l.toLowerCase();
                         const searchTitle = title.toLowerCase();
@@ -239,7 +238,19 @@ class AnimeService {
                                searchTitle.startsWith(candidateTitle);
                     });
                     
-                    const selectedCandidate = mainSeries || candidates[0];
+                    let selectedCandidate = mainSeries || candidates[0];
+                    
+                    // If we only found episode-specific results, try to extract the main series ID
+                    if (!mainSeries && candidates.length === 1 && candidates[0].l.includes(':')) {
+                        console.log(`Only found episode-specific result, attempting to find main series...`);
+                        const episodeId = candidates[0].id;
+                        const mainSeriesId = await this.findMainSeriesFromEpisode(episodeId);
+                        if (mainSeriesId) {
+                            console.log(`Found main series ID: ${mainSeriesId} from episode ${episodeId}`);
+                            return mainSeriesId;
+                        }
+                    }
+                    
                     console.log(`Selected candidate: ${selectedCandidate.l} (${selectedCandidate.id}) [${selectedCandidate.q}]`);
                     return selectedCandidate.id;
                 }
@@ -250,6 +261,52 @@ class AnimeService {
 
         } catch (error) {
             console.error(`Error searching IMDb for "${title}":`, error);
+            return null;
+        }
+    }
+
+    static async findMainSeriesFromEpisode(episodeId) {
+        try {
+            // Try to extract series ID by making a request to the episode page
+            // This is a simple heuristic - often the main series ID is the episode ID with a different format
+            // For Cyberpunk: Edgerunners, tt25447788 (episode) should relate to tt12590266 (series)
+            
+            // Try common patterns for series vs episode IDs
+            const episodeNum = parseInt(episodeId.replace('tt', ''));
+            
+            // Try some ID patterns around the episode ID
+            const candidateIds = [
+                `tt${episodeNum - 1}`,
+                `tt${episodeNum - 2}`,
+                `tt${episodeNum - 10}`,
+                `tt${episodeNum - 100}`,
+                `tt${episodeNum - 1000}`,
+                `tt${episodeNum - 10000}`,
+                `tt${Math.floor(episodeNum / 10) * 10}`,
+                `tt${Math.floor(episodeNum / 100) * 100}`
+            ];
+
+            console.log(`Trying candidate series IDs for episode ${episodeId}:`, candidateIds.slice(0, 5));
+            
+            // Test if any of these IDs exist in our ratings database
+            for (const candidateId of candidateIds) {
+                try {
+                    const url = `${process.env.RATINGS_API_URL || 'http://localhost:3001'}/api/rating/${candidateId}`;
+                    const data = await Utils.makeRequest(url);
+                    if (data?.rating && !data.error) {
+                        console.log(`Found valid series ID in database: ${candidateId}`);
+                        return candidateId;
+                    }
+                } catch (e) {
+                    // Continue trying other candidates
+                }
+            }
+            
+            console.log(`No main series ID found for episode ${episodeId}`);
+            return null;
+            
+        } catch (error) {
+            console.error(`Error finding main series from episode ${episodeId}:`, error);
             return null;
         }
     }
