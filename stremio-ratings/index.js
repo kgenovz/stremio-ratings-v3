@@ -268,25 +268,37 @@ class AnimeService {
     static async findMainSeriesFromEpisode(episodeId) {
         try {
             // Try to extract series ID by making a request to the episode page
-            // This is a simple heuristic - often the main series ID is the episode ID with a different format
             // For Cyberpunk: Edgerunners, tt25447788 (episode) should relate to tt12590266 (series)
             
-            // Try common patterns for series vs episode IDs
             const episodeNum = parseInt(episodeId.replace('tt', ''));
+            console.log(`Episode number: ${episodeNum}`);
             
-            // Try some ID patterns around the episode ID
+            // Try broader ID patterns - series IDs can be much different from episode IDs
             const candidateIds = [
-                `tt${episodeNum - 1}`,
-                `tt${episodeNum - 2}`,
-                `tt${episodeNum - 10}`,
-                `tt${episodeNum - 100}`,
-                `tt${episodeNum - 1000}`,
-                `tt${episodeNum - 10000}`,
+                // Close range
+                `tt${episodeNum - 1}`, `tt${episodeNum - 2}`, `tt${episodeNum - 10}`,
+                // Medium range  
+                `tt${episodeNum - 100}`, `tt${episodeNum - 1000}`, `tt${episodeNum - 10000}`,
+                // Far range (like Cyberpunk case: 25447788 -> 12590266)
+                `tt${episodeNum - 1000000}`, `tt${episodeNum - 5000000}`, `tt${episodeNum - 10000000}`,
+                `tt${episodeNum - 12000000}`, `tt${episodeNum - 12857522}`, // 25447788 - 12590266 = 12857522
+                // Pattern-based
                 `tt${Math.floor(episodeNum / 10) * 10}`,
-                `tt${Math.floor(episodeNum / 100) * 100}`
+                `tt${Math.floor(episodeNum / 100) * 100}`,
+                `tt${Math.floor(episodeNum / 1000) * 1000}`,
+                // Try some common series ID patterns
+                `tt${Math.floor(episodeNum / 2)}`, // Half the episode ID
+                `tt${episodeNum.toString().substring(0, 8)}`, // First 8 digits
+                `tt${episodeNum.toString().substring(0, 7)}`, // First 7 digits
+                `tt${episodeNum.toString().substring(0, 6)}`, // First 6 digits
+                // Specific pattern for this range
+                `tt125${episodeNum.toString().substring(3, 8)}`, // Try 125xxxxx pattern
+                `tt126${episodeNum.toString().substring(3, 8)}`, // Try 126xxxxx pattern  
+                `tt120${episodeNum.toString().substring(3, 8)}`, // Try 120xxxxx pattern
             ];
 
-            console.log(`Trying candidate series IDs for episode ${episodeId}:`, candidateIds.slice(0, 5));
+            console.log(`Trying ${candidateIds.length} candidate series IDs for episode ${episodeId}`);
+            console.log(`Sample candidates:`, candidateIds.slice(0, 10));
             
             // Test if any of these IDs exist in our ratings database
             for (const candidateId of candidateIds) {
@@ -294,11 +306,16 @@ class AnimeService {
                     const url = `${process.env.RATINGS_API_URL || 'http://localhost:3001'}/api/rating/${candidateId}`;
                     const data = await Utils.makeRequest(url);
                     if (data?.rating && !data.error) {
-                        console.log(`Found valid series ID in database: ${candidateId}`);
+                        console.log(`🎯 Found valid series ID in database: ${candidateId} (rating: ${data.rating})`);
                         return candidateId;
                     }
                 } catch (e) {
                     // Continue trying other candidates
+                }
+                
+                // Add a small delay to avoid overwhelming the API
+                if (candidateIds.indexOf(candidateId) % 5 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 10));
                 }
             }
             
@@ -501,13 +518,18 @@ class StreamService {
 
     // UPDATED: Enhanced getStreams method with anime support
     static async getStreams(type, id, config) {
+        console.log(`🎬 StreamService.getStreams called with type="${type}", id="${id}"`);
+        
         const parsedId = Utils.parseContentId(id);
         if (!parsedId) {
-            console.log('Could not parse content ID');
+            console.log('❌ Could not parse content ID');
             return [];
         }
 
+        console.log(`✅ Parsed ID:`, parsedId);
+
         if (!['series', 'movie'].includes(type)) {
+            console.log(`❌ Unsupported type: ${type}`);
             return [];
         }
 
@@ -516,23 +538,28 @@ class StreamService {
 
             // Handle Kitsu content - NEW
             if (parsedId.platform === 'kitsu') {
+                console.log(`🎌 Processing Kitsu content: ${parsedId.kitsuId}`);
                 imdbId = await AnimeService.getImdbFromKitsu(parsedId.kitsuId);
                 if (!imdbId) {
-                    console.log('Could not map Kitsu ID to IMDb');
+                    console.log('❌ Could not map Kitsu ID to IMDb');
                     return this.createNoRatingStream(config, parsedId.originalId);
                 }
+                console.log(`✅ Mapped to IMDb ID: ${imdbId}`);
             } else {
+                console.log(`🎬 Processing IMDb content: ${parsedId.imdbId}`);
                 imdbId = parsedId.imdbId;
             }
 
             // Get rating data
             if (parsedId.type === 'series' && parsedId.season && parsedId.episode) {
+                console.log(`📺 Processing as series episode: S${parsedId.season}E${parsedId.episode}`);
                 return await this.handleSeriesStreams(imdbId, parsedId.season, parsedId.episode, parsedId.originalId, config);
             } else {
+                console.log(`🎞️ Processing as movie/single content`);
                 return await this.handleMovieStreams(imdbId, config);
             }
         } catch (error) {
-            console.error('Error getting streams:', error);
+            console.error('❌ Error getting streams:', error);
             return [];
         }
     }
