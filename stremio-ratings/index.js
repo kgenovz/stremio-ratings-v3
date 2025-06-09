@@ -171,14 +171,24 @@ class AnimeService {
                     return result;
                 }
 
-                // Try without season/part info
-                const cleanTitle = title.replace(/[:\-]\s*(season|part|vol|volume|第\d+期)\s*\d*/gi, '').trim();
-                if (cleanTitle !== title) {
-                    console.log(`Trying clean title: "${cleanTitle}"`);
-                    const cleanResult = await this.searchImdbByTitle(cleanTitle);
-                    if (cleanResult) {
-                        console.log(`Auto-mapped with clean title: ${kitsuId} → ${cleanResult} (${cleanTitle})`);
-                        return cleanResult;
+                // Try without season/part info - multiple cleaning strategies
+                const cleaningPatterns = [
+                    /\s+season\s+\d+/gi,                    // " Season 2"
+                    /[:\-]\s*season\s*\d+/gi,              // ": Season 2" or "- Season 2"
+                    /[:\-]\s*(part|vol|volume)\s*\d+/gi,   // ": Part 1", "- Vol 2"
+                    /[:\-]\s*第\d+期/gi,                   // Japanese season notation
+                    /\s+\d+(st|nd|rd|th)\s+season/gi       // " 2nd Season"
+                ];
+
+                for (const pattern of cleaningPatterns) {
+                    const cleanTitle = title.replace(pattern, '').trim();
+                    if (cleanTitle !== title && cleanTitle.length > 0) {
+                        console.log(`Trying clean title: "${cleanTitle}" (removed: "${title.match(pattern)?.[0]}")`);
+                        const cleanResult = await this.searchImdbByTitle(cleanTitle);
+                        if (cleanResult) {
+                            console.log(`Auto-mapped with clean title: ${kitsuId} → ${cleanResult} (${cleanTitle})`);
+                            return cleanResult;
+                        }
                     }
                 }
             }
