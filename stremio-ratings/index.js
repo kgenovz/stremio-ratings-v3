@@ -212,13 +212,36 @@ class AnimeService {
             const imdbResponse = await Utils.makeRequest(imdbUrl);
             
             if (imdbResponse?.d?.length > 0) {
+                // Filter and prioritize candidates
                 const candidates = imdbResponse.d.filter(item => 
                     item.q === 'TV series' || item.q === 'TV movie' || item.q === 'video'
                 );
                 
                 if (candidates.length > 0) {
-                    console.log(`Found IMDb candidates:`, candidates.map(c => `${c.l} (${c.id})`));
-                    return candidates[0].id;
+                    console.log(`Found IMDb candidates:`, candidates.map(c => `${c.l} (${c.id}) [${c.q}]`));
+                    
+                    // Prioritize main series over episodes/specials
+                    // Look for exact title matches or series without episode-specific text
+                    const mainSeries = candidates.find(c => {
+                        const candidateTitle = c.l.toLowerCase();
+                        const searchTitle = title.toLowerCase();
+                        
+                        // Exact match or very close match
+                        if (candidateTitle === searchTitle) return true;
+                        
+                        // Avoid episode-specific titles (contain colons, "episode", etc.)
+                        if (candidateTitle.includes(':') && !searchTitle.includes(':')) return false;
+                        if (candidateTitle.includes('episode')) return false;
+                        if (candidateTitle.includes('special')) return false;
+                        
+                        // Check if candidate title starts with our search title
+                        return candidateTitle.startsWith(searchTitle) || 
+                               searchTitle.startsWith(candidateTitle);
+                    });
+                    
+                    const selectedCandidate = mainSeries || candidates[0];
+                    console.log(`Selected candidate: ${selectedCandidate.l} (${selectedCandidate.id}) [${selectedCandidate.q}]`);
+                    return selectedCandidate.id;
                 }
             }
 
