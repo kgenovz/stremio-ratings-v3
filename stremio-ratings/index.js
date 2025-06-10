@@ -225,13 +225,16 @@ class AnimeService {
                         const candidateTitle = c.l.toLowerCase();
                         const searchTitle = title.toLowerCase();
                         
+                        // If it's marked as TV series, it's likely the main series
+                        if (c.q === 'TV series') return true;
+                        
                         // Exact match or very close match
                         if (candidateTitle === searchTitle) return true;
                         
-                        // Avoid episode-specific titles (contain colons, "episode", etc.)
-                        if (candidateTitle.includes(':') && !searchTitle.includes(':')) return false;
+                        // Avoid episode-specific titles - be more specific about what constitutes episodes
                         if (candidateTitle.includes('episode')) return false;
                         if (candidateTitle.includes('special')) return false;
+                        if (candidateTitle.match(/:\s*(what|how|why|when|where|the\s+\w+\s+\w+)/i)) return false; // "What Do We Fear?" style
                         
                         // Check if candidate title starts with our search title
                         return candidateTitle.startsWith(searchTitle) || 
