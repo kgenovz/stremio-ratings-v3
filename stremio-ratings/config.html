@@ -187,6 +187,26 @@
             color: #7b68ee;
         }
 
+        .form-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .form-row .form-group {
+            margin: 0;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .option-note {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 5px;
+            font-style: italic;
+        }
+
         @media (max-width: 600px) {
             body {
                 padding: 15px;
@@ -206,6 +226,10 @@
                 align-items: flex-start;
                 gap: 8px;
             }
+
+            .form-row {
+                flex-direction: column;
+            }
             
             h1 {
                 font-size: 2rem;
@@ -217,7 +241,7 @@
     <h1>🎬 IMDb Ratings Configuration</h1>
     
     <div class="info-box">
-        <strong>Welcome!</strong> Configure your IMDb ratings addon below. You can customize how ratings are displayed and install the addon directly to Stremio.
+        <strong>Welcome!</strong> Configure your IMDb ratings addon below. You can customize how ratings and vote counts are displayed, then install the addon directly to Stremio.
     </div>
     
     <div class="config">
@@ -237,21 +261,47 @@
                 </label>
             </div>
             
-            <div class="form-group">
-                <label>
-                    Display Format:
-                    <select id="format">
-                        <option value="multiline">Multi-line (Detailed)</option>
-                        <option value="singleline">Single line (Compact)</option>
-                    </select>
-                </label>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>
+                        Display Format:
+                        <select id="format">
+                            <option value="multiline">Multi-line (Detailed)</option>
+                            <option value="singleline">Single line (Compact)</option>
+                        </select>
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        Stream Name:
+                        <input type="text" id="streamName" value="IMDb Rating" placeholder="Enter custom stream name">
+                    </label>
+                </div>
             </div>
-            
-            <div class="form-group">
-                <label>
-                    Stream Name:
-                    <input type="text" id="streamName" value="IMDb Rating" placeholder="Enter custom stream name">
-                </label>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>
+                        Vote Format:
+                        <select id="voteFormat">
+                            <option value="comma">With commas (45,123)</option>
+                            <option value="rounded">Rounded (45.1k)</option>
+                        </select>
+                    </label>
+                    <div class="option-note">How vote counts are displayed</div>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        Rating Format:
+                        <select id="ratingFormat">
+                            <option value="withMax">With max (8.5/10)</option>
+                            <option value="simple">Simple (8.5)</option>
+                        </select>
+                    </label>
+                    <div class="option-note">How ratings are displayed</div>
+                </div>
             </div>
         </div>
     </div>
@@ -276,28 +326,64 @@
         const BASE_URL = '{{BASE_URL}}';
         let currentConfig = null;
         
+        function formatVotes(votes, format) {
+            const num = parseInt(votes.toString().replace(/,/g, ''));
+            if (isNaN(num)) return votes;
+            
+            if (format === 'rounded') {
+                if (num >= 1000000) {
+                    return (num / 1000000).toFixed(1).replace('.0', '') + 'M';
+                } else if (num >= 1000) {
+                    return (num / 1000).toFixed(1).replace('.0', '') + 'k';
+                } else {
+                    return num.toString();
+                }
+            } else {
+                // Default comma format
+                return num.toLocaleString();
+            }
+        }
+        
+        function formatRating(rating, format) {
+            if (format === 'simple') {
+                return rating.toString();
+            } else {
+                return `${rating}/10`;
+            }
+        }
+        
         function updatePreview() {
             const showVotes = document.getElementById('showVotes').checked;
             const format = document.getElementById('format').value;
             const streamName = document.getElementById('streamName').value || 'IMDb Rating';
+            const voteFormat = document.getElementById('voteFormat').value;
+            const ratingFormat = document.getElementById('ratingFormat').value;
             
             // Build config object
             const config = {
                 showVotes: showVotes,
                 format: format,
-                streamName: streamName
+                streamName: streamName,
+                voteFormat: voteFormat,
+                ratingFormat: ratingFormat
             };
             
             currentConfig = config;
             
-            // Generate preview text
-            const votesText = showVotes ? ' (45,123 votes)' : '';
+            // Generate preview text with sample data
+            const sampleVotes = 45123;
+            const sampleRating = 9.3;
+            
+            const formattedVotes = formatVotes(sampleVotes, voteFormat);
+            const formattedRating = formatRating(sampleRating, ratingFormat);
+            const votesText = showVotes ? ` (${formattedVotes} votes)` : '';
+            
             let preview;
             
             if (format === 'singleline') {
-                preview = `📊 ${streamName}\n⭐ IMDb: 9.3/10${votesText}`;
+                preview = `📊 ${streamName}\n⭐ IMDb: ${formattedRating}${votesText}`;
             } else {
-                preview = `📊 ${streamName}\n───────────────\n⭐ IMDb        : 9.3/10\n${votesText}\n(Episode Rating)\n───────────────`;
+                preview = `📊 ${streamName}\n───────────────\n⭐ IMDb        : ${formattedRating}\n${votesText}\n(Episode Rating)\n───────────────`;
             }
             
             document.getElementById('preview').textContent = preview;
@@ -350,6 +436,8 @@
         document.getElementById('showVotes').addEventListener('change', updatePreview);
         document.getElementById('format').addEventListener('change', updatePreview);
         document.getElementById('streamName').addEventListener('input', updatePreview);
+        document.getElementById('voteFormat').addEventListener('change', updatePreview);
+        document.getElementById('ratingFormat').addEventListener('change', updatePreview);
         
         // Initialize preview
         updatePreview();

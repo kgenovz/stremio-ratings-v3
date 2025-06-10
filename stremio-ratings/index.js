@@ -8,7 +8,9 @@ const RATINGS_API_URL = process.env.RATINGS_API_URL || 'http://localhost:3001';
 const DEFAULT_CONFIG = {
     showVotes: true,
     format: 'multiline',
-    streamName: 'IMDb Rating'
+    streamName: 'IMDb Rating',
+    voteFormat: 'comma', // NEW: 'comma', 'rounded'
+    ratingFormat: 'withMax' // NEW: 'withMax' (8/10), 'simple' (8)
 };
 
 // Utility Functions
@@ -86,6 +88,36 @@ class Utils {
     static cleanPathname(pathname) {
         const cleaned = pathname.replace(/^\/(api|stremio)/, '');
         return cleaned.startsWith('/') ? cleaned : '/' + cleaned;
+    }
+
+    // NEW: Vote formatting utility
+    static formatVotes(votes, format = 'comma') {
+        if (!votes || votes === '0') return '';
+        
+        const num = parseInt(votes.toString().replace(/,/g, ''));
+        if (isNaN(num)) return votes;
+        
+        if (format === 'rounded') {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1).replace('.0', '') + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1).replace('.0', '') + 'k';
+            } else {
+                return num.toString();
+            }
+        } else {
+            // Default comma format
+            return num.toLocaleString();
+        }
+    }
+
+    // NEW: Rating formatting utility
+    static formatRating(rating, format = 'withMax') {
+        if (format === 'simple') {
+            return rating.toString();
+        } else {
+            return `${rating}/10`;
+        }
     }
 
     // NEW: Parse content ID for both IMDb and Kitsu formats
@@ -290,8 +322,14 @@ class AnimeService {
                     
                     let selectedCandidate = mainSeries || candidates[0];
                     
-                    // If we only found episode-specific results, try to extract the main series ID
-                    if (!mainSeries && candidates.length === 1 && candidates[0].l.includes(':')) {
+                    // ONLY try to find main series if we found episode-specific results AND no main series
+                    // Be more specific about what constitutes "episode-specific"
+                    const isEpisodeSpecific = candidates[0].l.includes(':') && 
+                        (candidates[0].l.toLowerCase().includes('episode') ||
+                         candidates[0].l.match(/:\s*(what|the|part|chapter|\d+)/i) ||
+                         candidates[0].q === 'video'); // videos are often episodes
+                    
+                    if (!mainSeries && candidates.length === 1 && isEpisodeSpecific) {
                         console.log(`Only found episode-specific result, attempting to find main series...`);
                         const episodeId = candidates[0].id;
                         const mainSeriesId = await this.findMainSeriesFromEpisode(episodeId);
@@ -299,6 +337,7 @@ class AnimeService {
                             console.log(`Found main series ID: ${mainSeriesId} from episode ${episodeId}`);
                             return mainSeriesId;
                         }
+                        console.log(`Could not find main series, using episode result as fallback`);
                     }
                     
                     console.log(`Selected candidate: ${selectedCandidate.l} (${selectedCandidate.id}) [${selectedCandidate.q}]`);
@@ -456,20 +495,23 @@ class ManifestService {
 class StreamService {
     static formatRatingDisplay(ratingData, config, type = 'episode') {
         const { rating, votes } = ratingData;
-        const { showVotes, format, streamName } = config;
+        const { showVotes, format, streamName, voteFormat, ratingFormat } = config;
         
-        const votesText = showVotes && votes ? ` (${votes} votes)` : '';
+        // NEW: Format votes and rating according to config
+        const formattedVotes = Utils.formatVotes(votes, voteFormat);
+        const formattedRating = Utils.formatRating(rating, ratingFormat);
+        const votesText = showVotes && formattedVotes ? ` (${formattedVotes} votes)` : '';
         
         if (format === 'singleline') {
             return {
                 name: streamName,
-                description: `⭐ IMDb: ${rating}/10${votesText}`,
+                description: `⭐ IMDb: ${formattedRating}${votesText}`,
             };
         }
         
         const lines = [
             "───────────────",
-            `⭐ IMDb        : ${rating}/10`,
+            `⭐ IMDb        : ${formattedRating}`,
             `${votesText}`,
             "───────────────"
         ];
@@ -601,10 +643,26 @@ class StreamService {
                 
                 // Get proper season info for Kitsu content
                 if (parsedId.episode) {
-                    const seasonInfo = await AnimeService.getKitsuSeasonInfo(parsedId.kitsuId, parsedId.episode);
-                    parsedId.season = seasonInfo.season;
-                    parsedId.episode = seasonInfo.episode;
-                    console.log(`📺 Updated season info: S${parsedId.season}E${parsedId.episode}`);
+                    // For manual mappings, we can extract season info without re-triggering search
+                    if (AnimeService.MANUAL_MAPPINGS && AnimeService.MANUAL_MAPPINGS[parsedId.kitsuId]) {
+                        console.log(`📋 Using manual mapping - extracting season from known title`);
+                        // For Avatar, we know the pattern: Book 1/2/3
+                        if (['7936', '7937', '7938'].includes(parsedId.kitsuId)) {
+                            const seasonMap = { '7936': 1, '7937': 2, '7938': 3 };
+                            parsedId.season = seasonMap[parsedId.kitsuId];
+                            console.log(`📺 Avatar season mapping: Kitsu ${parsedId.kitsuId} → Season ${parsedId.season}, Episode ${parsedId.episode}`);
+                        } else {
+                            // For other manual mappings, use default season 1
+                            parsedId.season = 1;
+                            console.log(`📺 Manual mapping default: Season ${parsedId.season}, Episode ${parsedId.episode}`);
+                        }
+                    } else {
+                        // Only call getKitsuSeasonInfo for non-manual mappings
+                        const seasonInfo = await AnimeService.getKitsuSeasonInfo(parsedId.kitsuId, parsedId.episode);
+                        parsedId.season = seasonInfo.season;
+                        parsedId.episode = seasonInfo.episode;
+                        console.log(`📺 Updated season info: S${parsedId.season}E${parsedId.episode}`);
+                    }
                 }
             } else {
                 console.log(`🎬 Processing IMDb content: ${parsedId.imdbId}`);
