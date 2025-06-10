@@ -496,35 +496,35 @@ class StreamService {
     static formatRatingDisplay(ratingData, config, type = 'episode') {
         const { rating, votes } = ratingData;
         const { showVotes, format, streamName, voteFormat, ratingFormat } = config;
-        
-        // NEW: Format votes and rating according to config
+       
+        // Format votes and rating according to config
         const formattedVotes = Utils.formatVotes(votes, voteFormat);
         const formattedRating = Utils.formatRating(rating, ratingFormat);
         const votesText = showVotes && formattedVotes ? ` (${formattedVotes} votes)` : '';
-        
+       
+        // Only show type indicator for series ratings (not episode ratings)
+        const typeIndicator = type === 'series_fallback' ? " (Series Rating)" : "";
+       
         if (format === 'singleline') {
             return {
                 name: streamName,
-                description: `⭐  IMDb:  ${formattedRating} ${votesText}`,
+                description: `⭐  IMDb:  ${formattedRating}  ${typeIndicator}  ${votesText}`,
             };
         }
-        
+       
+        // Multi-line format
         const lines = [
             "───────────────",
             `⭐ IMDb        : ${formattedRating}`,
             `${votesText}`,
             "───────────────"
         ];
-        
-        const typeIndicators = {
-            episode: "(Episode Rating)",
-            series_fallback: "(Series Rating)"
-        };
-        
-        if (typeIndicators[type]) {
-            lines.splice(2, 0, typeIndicators[type]);
+       
+        // Only add type indicator for series ratings in multi-line format
+        if (type === 'series_fallback') {
+            lines.splice(2, 0, "(Series Rating)");
         }
-        
+       
         return {
             name: streamName,
             description: lines.join('\n')
@@ -546,40 +546,43 @@ class StreamService {
 
     static async handleSeriesStreams(imdbId, season, episode, id, config) {
         console.log(`Processing episode ${season}x${episode} for series ${imdbId}`);
-        
+       
         // Try episode-specific rating first
         let ratingData = await RatingService.getEpisodeRating(imdbId, season, episode);
-        
-        // If we have episode rating, use it directly - no need for fallbacks
+       
         if (ratingData) {
+            // Explicitly set type for episode ratings
+            ratingData.type = 'episode';
             const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type);
             const stream = this.createStream(displayConfig, imdbId, id, ratingData);
             console.log(`✅ Added episode rating stream: ${ratingData.rating}/10`);
             return [stream];
         }
-        
-        // Only try series fallback if no episode rating found
+       
+        // Fallback to series rating with clear indication
         console.log('No episode rating found, trying series rating as fallback...');
         ratingData = await RatingService.getRating(imdbId);
+        
         if (ratingData) {
             ratingData.type = 'series_fallback';
             const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type);
             const stream = this.createStream(displayConfig, imdbId, id, ratingData);
-            console.log(`✅ Added ${ratingData.type} rating stream: ${ratingData.rating}/10`);
+            console.log(`✅ Added series fallback rating stream: ${ratingData.rating}/10`);
             return [stream];
         }
-
+        
         // No rating available at all
         const displayConfig = this.formatRatingDisplay(
-            { rating: 'Not Available', votes: '' }, 
-            config
+            { rating: 'Not Available', votes: '' },
+            config,
+            'not_available'
         );
-        
+       
         const stream = this.createStream({
             name: displayConfig.name,
             description: displayConfig.description.replace(/⭐.*/, '⭐ IMDb Rating: Not Available')
         }, imdbId, id);
-        
+       
         console.log('❌ Added "no rating" stream');
         return [stream];
     }
