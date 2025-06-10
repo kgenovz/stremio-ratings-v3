@@ -102,7 +102,7 @@ class Utils {
                 platform: 'kitsu',
                 kitsuId: kitsuId,
                 episode: episode ? parseInt(episode) : null,
-                season: episode ? 1 : null,
+                season: episode ? 1 : null, // Will be adjusted based on title later
                 type: episode ? 'series' : 'movie',
                 originalId: decodedId,
                 needsMapping: true
@@ -128,6 +128,29 @@ class Utils {
 
         console.warn('Could not parse ID format:', decodedId);
         return null;
+    }
+
+    // NEW: Extract season number from title
+    static extractSeasonFromTitle(title) {
+        // Look for season indicators in various formats
+        const patterns = [
+            /book\s*(\d+)/i,           // "Book 1", "Book 2"
+            /season\s*(\d+)/i,         // "Season 1", "Season 2"  
+            /part\s*(\d+)/i,           // "Part 1", "Part 2"
+            /第(\d+)期/i,              // Japanese "第2期" format
+            /\s(\d+)(st|nd|rd|th)\s+season/i, // "2nd Season"
+        ];
+
+        for (const pattern of patterns) {
+            const match = title.match(pattern);
+            if (match) {
+                const seasonNum = parseInt(match[1]);
+                console.log(`Extracted season ${seasonNum} from title: "${title}"`);
+                return seasonNum;
+            }
+        }
+
+        return 1; // Default to season 1 if no season found
     }
 }
 
@@ -551,6 +574,14 @@ class StreamService {
                     return this.createNoRatingStream(config, parsedId.originalId);
                 }
                 console.log(`✅ Mapped to IMDb ID: ${imdbId}`);
+                
+                // Get proper season info for Kitsu content
+                if (parsedId.episode) {
+                    const seasonInfo = await AnimeService.getKitsuSeasonInfo(parsedId.kitsuId, parsedId.episode);
+                    parsedId.season = seasonInfo.season;
+                    parsedId.episode = seasonInfo.episode;
+                    console.log(`📺 Updated season info: S${parsedId.season}E${parsedId.episode}`);
+                }
             } else {
                 console.log(`🎬 Processing IMDb content: ${parsedId.imdbId}`);
                 imdbId = parsedId.imdbId;
