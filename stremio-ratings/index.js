@@ -505,7 +505,7 @@ class StreamService {
         if (format === 'singleline') {
             return {
                 name: streamName,
-                description: `⭐ IMDb: ${formattedRating}${votesText}`,
+                description: `⭐  IMDb:  ${formattedRating} ${votesText}`,
             };
         }
         
