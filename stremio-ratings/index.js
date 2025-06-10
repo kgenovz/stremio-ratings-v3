@@ -225,6 +225,30 @@ class AnimeService {
         }
     }
 
+    // Get season and episode info for Kitsu content
+    static async getKitsuSeasonInfo(kitsuId, episode) {
+        try {
+            const kitsuUrl = `https://kitsu.io/api/edge/anime/${kitsuId}`;
+            const kitsuResponse = await Utils.makeRequest(kitsuUrl);
+
+            if (!kitsuResponse?.data?.attributes) {
+                return { season: 1, episode: episode };
+            }
+
+            const attrs = kitsuResponse.data.attributes;
+            const title = attrs.canonicalTitle || attrs.titles?.en || '';
+            
+            const season = Utils.extractSeasonFromTitle(title);
+            console.log(`Kitsu season info: "${title}" -> Season ${season}, Episode ${episode}`);
+            
+            return { season, episode };
+
+        } catch (error) {
+            console.error(`Error getting Kitsu season info for ${kitsuId}:`, error);
+            return { season: 1, episode: episode };
+        }
+    }
+
     static async searchImdbByTitle(title) {
         try {
             const letter = title.slice(0, 1).toLowerCase();
