@@ -433,67 +433,28 @@ class AnimeService {
         }
     }
 
-    // NEW: Get TVDB season/episode mapping
-    static async getTVDBEpisodeMapping(imdbId, season, episode) {
-        try {
-            console.log(`Getting TVDB mapping for ${imdbId} S${season}E${episode}...`);
-            
-            // First, get TVDB series ID from IMDb ID
-            const tvdbSeriesId = await this.getTVDBSeriesId(imdbId);
-            if (!tvdbSeriesId) {
-                console.log(`No TVDB series ID found for ${imdbId}`);
-                return null;
+    // NEW: Hardcoded season mappings for problematic series
+    static getHardcodedSeasonMapping(imdbId, season, episode) {
+        const SEASON_MAPPINGS = {
+            'tt0388629': { // One Piece - exact episode counts from TVDB
+                episodesPerSeason: [0, 8, 22, 17, 13, 9, 22, 39, 13, 52, 31, 99, 56, 100, 35, 62, 49, 118, 33, 98, 14, 194, 48],
             }
-            
-            console.log(`Found TVDB series ID: ${tvdbSeriesId}`);
-            
-            // Get all seasons data from TVDB
-            const seasonsData = await this.getTVDBSeasons(tvdbSeriesId);
-            if (!seasonsData) {
-                console.log(`No TVDB seasons data found for ${tvdbSeriesId}`);
-                return null;
-            }
-            
-            // Calculate absolute episode number based on TVDB data
-            let absoluteEpisode = 0;
-            for (let s = 1; s < season; s++) {
-                const seasonData = seasonsData.find(seasonObj => seasonObj.number === s);
-                if (seasonData) {
-                    absoluteEpisode += seasonData.episodeCount;
-                    console.log(`Season ${s}: ${seasonData.episodeCount} episodes (running total: ${absoluteEpisode})`);
-                }
-            }
-            absoluteEpisode += episode;
-            
-            console.log(`TVDB mapping: S${season}E${episode} → S1E${absoluteEpisode}`);
-            return { season: 1, episode: absoluteEpisode };
-            
-        } catch (error) {
-            console.error('Error getting TVDB mapping:', error);
-            return null;
-        }
-    }
+        };
 
-    static async getTVDBSeriesId(imdbId) {
-        try {
-            // TVDB search endpoint to find series by IMDb ID
-            const response = await Utils.makeRequest(`https://api4.thetvdb.com/v4/search?query=${imdbId}&type=series`);
-            return response?.data?.[0]?.tvdb_id;
-        } catch (error) {
-            console.error(`Error getting TVDB series ID for ${imdbId}:`, error);
-            return null;
-        }
-    }
+        const mapping = SEASON_MAPPINGS[imdbId];
+        if (!mapping) return null;
 
-    static async getTVDBSeasons(tvdbId) {
-        try {
-            // Get season episode counts
-            const response = await Utils.makeRequest(`https://api4.thetvdb.com/v4/series/${tvdbId}/episodes/summary`);
-            return response?.data?.seasons;
-        } catch (error) {
-            console.error(`Error getting TVDB seasons for ${tvdbId}:`, error);
-            return null;
+        // Calculate absolute episode number
+        let absoluteEpisode = 0;
+        for (let s = 1; s < season; s++) {
+            if (mapping.episodesPerSeason[s]) {
+                absoluteEpisode += mapping.episodesPerSeason[s];
+            }
         }
+        absoluteEpisode += episode;
+
+        console.log(`Hardcoded mapping for ${imdbId}: S${season}E${episode} → S1E${absoluteEpisode}`);
+        return { season: 1, episode: absoluteEpisode };
     }
 
     // NEW: Find episode by title using IMDb suggestions
@@ -708,23 +669,23 @@ class StreamService {
         let ratingData = await RatingService.getEpisodeRating(imdbId, season, episode);
        
         // NEW: Smart fallback for season mismatches (like One Piece)
-        // If no rating found and not season 1, try TVDB-based mapping
+        // If no rating found and not season 1, try hardcoded mapping first
         if (!ratingData && season > 1) {
-            console.log(`No rating found for S${season}E${episode}, trying TVDB-based mapping...`);
+            console.log(`No rating found for S${season}E${episode}, trying hardcoded mapping...`);
             
-            // Try TVDB-based mapping instead of static calculation
-            const tvdbMapping = await AnimeService.getTVDBEpisodeMapping(imdbId, season, episode);
-            if (tvdbMapping) {
-                console.log(`TVDB mapped S${season}E${episode} to S${tvdbMapping.season}E${tvdbMapping.episode}`);
-                ratingData = await RatingService.getEpisodeRating(imdbId, tvdbMapping.season, tvdbMapping.episode);
+            // Try hardcoded mapping for known problematic series
+            const hardcodedMapping = AnimeService.getHardcodedSeasonMapping(imdbId, season, episode);
+            if (hardcodedMapping) {
+                console.log(`Using hardcoded mapping: S${season}E${episode} → S${hardcodedMapping.season}E${hardcodedMapping.episode}`);
+                ratingData = await RatingService.getEpisodeRating(imdbId, hardcodedMapping.season, hardcodedMapping.episode);
                 if (ratingData) {
-                    console.log(`✅ Found rating via TVDB mapping: ${ratingData.rating}/10`);
+                    console.log(`✅ Found rating via hardcoded mapping: ${ratingData.rating}/10`);
                 }
             }
 
-            // Fallback to static calculation if TVDB fails
+            // Fallback to static calculation if hardcoded mapping fails or doesn't exist
             if (!ratingData) {
-                console.log(`TVDB mapping failed, trying static calculation fallback...`);
+                console.log(`Hardcoded mapping failed or doesn't exist, trying static calculation fallback...`);
                 
                 // Calculate absolute episode number assuming each season has ~25 episodes
                 const estimatedAbsoluteEpisode = ((season - 1) * 25) + episode;
@@ -748,9 +709,9 @@ class StreamService {
                 }
             }
 
-            // NEW: If TVDB and static fallbacks fail, try episode title matching via IMDb search
+            // Final fallback: episode title matching via IMDb search
             if (!ratingData) {
-                console.log(`All fallbacks failed, trying episode title matching...`);
+                console.log(`All other fallbacks failed, trying episode title matching...`);
                 const episodeId = await AnimeService.findEpisodeByTitle(imdbId, season, episode);
                 if (episodeId) {
                     ratingData = await RatingService.getEpisodeRatingById(episodeId);
