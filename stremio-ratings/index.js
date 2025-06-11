@@ -469,6 +469,32 @@ class RatingService {
             return null;
         }
     }
+
+    // NEW: Get episode rating by episode ID (for Cinemeta fix)
+    static async getEpisodeRatingById(episodeId) {
+        try {
+            const url = `${RATINGS_API_URL}/api/episode/id/${episodeId}`;
+            console.log(`Fetching episode rating by ID from local dataset:`, url);
+            
+            const data = await Utils.makeRequest(url);
+            console.log('Episode by ID API response:', data);
+            
+            if (data?.rating && !data.error) {
+                return {
+                    rating: data.rating,
+                    votes: data.votes || '0',
+                    episodeId: data.episodeId || episodeId,
+                    type: 'episode'
+                };
+            }
+            
+            console.log('⚠️ No episode rating found by ID in local dataset');
+            return null;
+        } catch (error) {
+            console.error('Error fetching episode by ID from local dataset:', error);
+            return null;
+        }
+    }
 }
 
 // Manifest Service
@@ -601,12 +627,20 @@ class StreamService {
     static async handleMovieStreams(id, config) {
         console.log(`Processing movie: ${id}`);
         
-        const ratingData = await RatingService.getRating(id);
+        // 1️⃣ Try normal movie/series rating first
+        let ratingData = await RatingService.getRating(id);
+        
+        // 2️⃣ If nothing came back AND the id looks like an IMDb tconst,
+        //    treat it as a TV-episode id (FIX for Cinemeta)
+        if (!ratingData && /^tt\d+$/.test(id)) {
+            console.log(`No movie rating found for ${id}, trying as episode ID...`);
+            ratingData = await RatingService.getEpisodeRatingById(id);
+        }
         
         if (ratingData) {
-            const displayConfig = this.formatRatingDisplay(ratingData, config, 'movie');
+            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type || 'movie');
             const stream = this.createStream(displayConfig, id, id, ratingData);
-            console.log(`✅ Added movie rating stream: ${ratingData.rating}/10`);
+            console.log(`✅ Added ${ratingData.type || 'movie'} rating stream: ${ratingData.rating}/10`);
             return [stream];
         }
 
