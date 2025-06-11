@@ -628,7 +628,7 @@ class StreamService {
         const { rating, votes } = ratingData;
         const { showVotes, format, streamName, voteFormat, ratingFormat } = config;
        
-        // Handle "not available" case - now consistent for both formats
+        // Handle "not available" case
         if (type === 'not_available') {
             return {
                 name: streamName,
@@ -641,7 +641,7 @@ class StreamService {
         const formattedRating = Utils.formatRating(rating, ratingFormat);
         const votesText = showVotes && formattedVotes ? ` (${formattedVotes} votes)` : '';
        
-        // Handle series fallback case - now consistent for both formats
+        // Handle series fallback case
         if (type === 'series_fallback') {
             return {
                 name: streamName,
@@ -652,14 +652,14 @@ class StreamService {
         if (format === 'singleline') {
             return {
                 name: streamName,
-                description: `⭐  IMDb:  ${formattedRating}${votesText}`
+                description: `⭐  IMDb:  ${formattedRating} ${votesText}`
             };
         }
        
-        // ── MULTILINE (episode) - using the new formatting approach
-        const ratingLine = `⭐  IMDb: ${formattedRating}`;
+        // ── MULTILINE (episode)
+        const ratingLine = `⭐  IMDb:  ${formattedRating}`;
         const lines = [
-            '─'.repeat(ratingLine.length),          // separator
+            '─'.repeat(ratingLine.length),          
             ratingLine
         ];
         if (showVotes && formattedVotes) {
@@ -912,7 +912,7 @@ class StreamService {
 
         const stream = this.createStream({
             name: displayConfig.name,
-            description: displayConfig.description.replace(/⭐.*/, '⭐ IMDb Rating: Not Available')
+            description: displayConfig.description.replace(/⭐.*/, '⭐  IMDb Rating: Not Available')
         }, imdbId, originalId);
 
         console.log('❌ Added "no rating" stream');
