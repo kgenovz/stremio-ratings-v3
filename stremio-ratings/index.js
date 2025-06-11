@@ -647,7 +647,7 @@ class StreamService {
                 description: `❌  Episode rating not available\n⭐  IMDb Series Rating: ${formattedRating} ${votesText}`
             };
         }
-        
+       
         if (format === 'singleline') {
             return {
                 name: streamName,
@@ -655,12 +655,17 @@ class StreamService {
             };
         }
        
-        // Regular multi-line format for episode ratings
+        // Regular multi-line format for episode ratings with dynamic alignment
+        const separator = "───────────────";
+        const leftCol = `⭐  IMDb:  ${formattedRating}`;
+        const rightCol = votesText;
+        const totalWidth = separator.length;
+        const spaceBetween = Math.max(1, totalWidth - leftCol.length - rightCol.length);
+        
         const lines = [
-            "───────────────",
-            `⭐  IMDb:  ${formattedRating}`,
-            `           ${votesText}`,
-            "───────────────"
+            separator,
+            `${leftCol}${' '.repeat(spaceBetween)}${rightCol}`,
+            separator
         ];
        
         return {
@@ -668,6 +673,7 @@ class StreamService {
             description: lines.join('\n')
         };
     }
+
    
     static createStream(displayConfig, imdbId, id, ratingData = null) {
         return {
