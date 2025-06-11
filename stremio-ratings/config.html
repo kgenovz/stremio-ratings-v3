@@ -469,7 +469,8 @@
             if (format === 'singleline') {
                 pcStreamContent = `⭐&ensp;IMDb:&ensp;${formattedRating} ${votesText}`;
             } else {
-                pcStreamContent = `⭐&ensp;IMDb:&ensp;${formattedRating} ${showVotes ? '<br>('+ formattedVotes + ' votes)' : ''}`;
+                // For multiline, align votes with "I" in "IMDb" - add spacing to align with the "I"
+                pcStreamContent = `⭐&ensp;IMDb:&ensp;${formattedRating} ${showVotes ? '<br>&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;('+ formattedVotes + ' votes)' : ''}`;
             }
             previewPC.innerHTML = `
                 <div class="stream-item" style="${format === 'multiline' ? '' : 'white-space: nowrap;'}">
@@ -480,10 +481,17 @@
             
             // Update the Mobile preview (stacked layout)
             const previewMobile = document.getElementById('previewMobile');
+            let mobileStreamContent;
+            if (format === 'singleline') {
+                mobileStreamContent = `⭐&ensp;IMDb:&ensp;${formattedRating} ${votesText}`;
+            } else {
+                // For mobile multiline, align votes with "I" in "IMDb"
+                mobileStreamContent = `⭐&ensp;IMDb:&ensp;${formattedRating} ${showVotes ? '<br>&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;('+ formattedVotes + ' votes)' : ''}`;
+            }
             previewMobile.innerHTML = `
                 <div class="stream-item-mobile">
                     <div class="stream-name-mobile">${streamName}</div>
-                    <div class="stream-content-mobile">${streamContent.replace(/\n/g, '<br>')}</div>
+                    <div class="stream-content-mobile">${mobileStreamContent}</div>
                 </div>
             `;
             

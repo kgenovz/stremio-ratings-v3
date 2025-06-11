@@ -17,7 +17,7 @@ const DEFAULT_CONFIG = {
 class Utils {
     static parseConfig(configStr) {
         if (!configStr) return DEFAULT_CONFIG;
-        
+
         try {
             const parsed = JSON.parse(configStr);
             return { ...DEFAULT_CONFIG, ...parsed };
@@ -45,7 +45,7 @@ class Utils {
     static makeRequest(url) {
         return new Promise((resolve, reject) => {
             const protocol = url.startsWith('https:') ? https : http;
-            
+
             protocol.get(url, (res) => {
                 let data = '';
                 res.on('data', (chunk) => data += chunk);
@@ -61,8 +61,8 @@ class Utils {
     }
 
     static parseUrl(req) {
-        const host = req.headers['x-forwarded-host'] || req.headers.host || 
-                     process.env.VERCEL_URL || 'localhost:3000';
+        const host = req.headers['x-forwarded-host'] || req.headers.host ||
+            process.env.VERCEL_URL || 'localhost:3000';
         const protocol = host.includes('localhost') ? 'http' : 'https';
         const baseUrl = `${protocol}://${host}`;
 
@@ -93,10 +93,10 @@ class Utils {
     // NEW: Vote formatting utility
     static formatVotes(votes, format = 'comma') {
         if (!votes || votes === '0') return '';
-        
+
         const num = parseInt(votes.toString().replace(/,/g, ''));
         if (isNaN(num)) return votes;
-        
+
         if (format === 'rounded') {
             if (num >= 1000000) {
                 return (num / 1000000).toFixed(1).replace('.0', '') + 'M';
@@ -192,11 +192,11 @@ class AnimeService {
     static MANUAL_MAPPINGS = {
         '7936': 'tt0417299', // Avatar: The Last Airbender - Book 1: Air
         '7937': 'tt0417299', // Avatar: The Last Airbender - Book 2: Earth
-        '7938': 'tt0417299', // Avatar: The Last Airbender - Book 3: Fire
+        '7926': 'tt0417299', // Avatar: The Last Airbender - Book 3: Fire
         '7939': 'tt1695360', // Legend of Korra - Book 1: Air
-        '8765': 'tt1695360', // Legend of Korra - Book 2: Spirits
-        '8766': 'tt1695360', // Legend of Korra - Book 3: Change
-        '8767': 'tt1695360', // Legend of Korra - Book 4: Balance
+        '7938': 'tt1695360', // Legend of Korra - Book 2: Spirits
+        '8077': 'tt1695360', // Legend of Korra - Book 3: Change
+        '8706': 'tt1695360', // Legend of Korra - Book 4: Balance
     };
 
     // Enhanced Kitsu to IMDb mapping with multiple search strategies
@@ -287,10 +287,10 @@ class AnimeService {
 
             const attrs = kitsuResponse.data.attributes;
             const title = attrs.canonicalTitle || attrs.titles?.en || '';
-            
+
             const season = Utils.extractSeasonFromTitle(title);
             console.log(`Kitsu season info: "${title}" -> Season ${season}, Episode ${episode}`);
-            
+
             return { season, episode };
 
         } catch (error) {
@@ -307,53 +307,53 @@ class AnimeService {
 
             console.log(`Searching IMDb for: "${title}"`);
             const imdbResponse = await Utils.makeRequest(imdbUrl);
-            
+
             if (imdbResponse?.d?.length > 0) {
                 // Filter and prioritize candidates
-                const candidates = imdbResponse.d.filter(item => 
+                const candidates = imdbResponse.d.filter(item =>
                     item.q === 'TV series' || item.q === 'TV movie' || item.q === 'video'
                 );
-                
+
                 if (candidates.length > 0) {
                     console.log(`Found IMDb candidates:`, candidates.map(c => `${c.l} (${c.id}) [${c.q}]`));
-                    
+
                     // Prioritize main series over episodes/specials
                     const mainSeries = candidates.find(c => {
                         const candidateTitle = c.l.toLowerCase();
                         const searchTitle = title.toLowerCase();
-                        
+
                         // PRIORITY 1: TV series that matches the search title
                         if (c.q === 'TV series' && (
                             candidateTitle === searchTitle ||
                             candidateTitle.includes(searchTitle) ||
                             searchTitle.includes(candidateTitle)
                         )) return true;
-                        
+
                         // PRIORITY 2: Any TV series (if no matching TV series found)
                         if (c.q === 'TV series') return true;
-                        
+
                         // PRIORITY 3: Exact match or very close match
                         if (candidateTitle === searchTitle) return true;
-                        
+
                         // Avoid episode-specific titles - be more specific about what constitutes episodes
                         if (candidateTitle.includes('episode')) return false;
                         if (candidateTitle.includes('special')) return false;
                         if (candidateTitle.match(/:\s*(what|how|why|when|where|the\s+\w+\s+\w+)/i)) return false; // "What Do We Fear?" style
-                        
+
                         // Check if candidate title starts with our search title
-                        return candidateTitle.startsWith(searchTitle) || 
-                               searchTitle.startsWith(candidateTitle);
+                        return candidateTitle.startsWith(searchTitle) ||
+                            searchTitle.startsWith(candidateTitle);
                     });
-                    
+
                     let selectedCandidate = mainSeries || candidates[0];
-                    
+
                     // ONLY try to find main series if we found episode-specific results AND no main series
                     // Be more specific about what constitutes "episode-specific"
-                    const isEpisodeSpecific = candidates[0].l.includes(':') && 
+                    const isEpisodeSpecific = candidates[0].l.includes(':') &&
                         (candidates[0].l.toLowerCase().includes('episode') ||
-                         candidates[0].l.match(/:\s*(what|the|part|chapter|\d+)/i) ||
-                         candidates[0].q === 'video'); // videos are often episodes
-                    
+                            candidates[0].l.match(/:\s*(what|the|part|chapter|\d+)/i) ||
+                            candidates[0].q === 'video'); // videos are often episodes
+
                     if (!mainSeries && candidates.length === 1 && isEpisodeSpecific) {
                         console.log(`Only found episode-specific result, attempting to find main series...`);
                         const episodeId = candidates[0].id;
@@ -364,7 +364,7 @@ class AnimeService {
                         }
                         console.log(`Could not find main series, using episode result as fallback`);
                     }
-                    
+
                     console.log(`Selected candidate: ${selectedCandidate.l} (${selectedCandidate.id}) [${selectedCandidate.q}]`);
                     return selectedCandidate.id;
                 }
@@ -383,10 +383,10 @@ class AnimeService {
         try {
             // Try to extract series ID by making a request to the episode page
             // For Cyberpunk: Edgerunners, tt25447788 (episode) should relate to tt12590266 (series)
-            
+
             const episodeNum = parseInt(episodeId.replace('tt', ''));
             console.log(`Episode number: ${episodeNum}`);
-            
+
             // Try broader ID patterns - series IDs can be much different from episode IDs
             const candidateIds = [
                 // Close range
@@ -413,7 +413,7 @@ class AnimeService {
 
             console.log(`Trying ${candidateIds.length} candidate series IDs for episode ${episodeId}`);
             console.log(`Sample candidates:`, candidateIds.slice(0, 10));
-            
+
             // Test if any of these IDs exist in our ratings database
             for (const candidateId of candidateIds) {
                 try {
@@ -426,16 +426,16 @@ class AnimeService {
                 } catch (e) {
                     // Continue trying other candidates
                 }
-                
+
                 // Add a small delay to avoid overwhelming the API
                 if (candidateIds.indexOf(candidateId) % 5 === 0) {
                     await new Promise(resolve => setTimeout(resolve, 10));
                 }
             }
-            
+
             console.log(`No main series ID found for episode ${episodeId}`);
             return null;
-            
+
         } catch (error) {
             console.error(`Error finding main series from episode ${episodeId}:`, error);
             return null;
@@ -447,7 +447,7 @@ class AnimeService {
         try {
             const url = `https://v2.sg.media-imdb.com/suggestion/t/${imdbId}.json`;
             const response = await Utils.makeRequest(url);
-            
+
             if (response?.d?.length > 0) {
                 return { title: response.d[0].l };
             }
@@ -486,23 +486,23 @@ class AnimeService {
     static async findEpisodeByTitle(seriesImdbId, season, episode) {
         try {
             console.log(`Trying episode title matching via IMDb suggestions for S${season}E${episode}...`);
-            
+
             // First get the series title from IMDb suggestions
             const seriesData = await this.getSeriesTitleFromImdb(seriesImdbId);
             if (!seriesData) {
                 console.log(`Could not get series title for ${seriesImdbId}`);
                 return null;
             }
-            
+
             console.log(`Series title: "${seriesData.title}"`);
-            
+
             // Search for specific episode with multiple query formats
             const queries = [
                 `${seriesData.title} season ${season} episode ${episode}`,
                 `${seriesData.title} S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')}`,
                 `${seriesData.title} ${season}x${episode}`
             ];
-            
+
             for (const query of queries) {
                 console.log(`Searching IMDb for: "${query}"`);
                 const episodeId = await this.searchImdbByTitle(query);
@@ -511,10 +511,10 @@ class AnimeService {
                     return episodeId;
                 }
             }
-            
+
             console.log(`No episode found via title matching`);
             return null;
-            
+
         } catch (error) {
             console.error(`Error finding episode by title:`, error);
             return null;
@@ -528,10 +528,10 @@ class RatingService {
         try {
             const url = `${RATINGS_API_URL}/api/rating/${imdbId}`;
             console.log(`Fetching rating from local dataset:`, url);
-            
+
             const data = await Utils.makeRequest(url);
             console.log('Local API response:', data);
-            
+
             if (data?.rating && !data.error) {
                 return {
                     rating: data.rating,
@@ -540,7 +540,7 @@ class RatingService {
                     type: data.type || 'direct'
                 };
             }
-            
+
             console.log('⚠️ No rating found in local dataset');
             return null;
         } catch (error) {
@@ -553,10 +553,10 @@ class RatingService {
         try {
             const url = `${RATINGS_API_URL}/api/episode/${seriesId}/${season}/${episode}`;
             console.log(`Fetching episode rating from local dataset:`, url);
-            
+
             const data = await Utils.makeRequest(url);
             console.log('Episode API response:', data);
-            
+
             if (data?.rating && !data.error) {
                 return {
                     rating: data.rating,
@@ -565,7 +565,7 @@ class RatingService {
                     type: 'episode'
                 };
             }
-            
+
             console.log('⚠️ No episode rating found in local dataset');
             return null;
         } catch (error) {
@@ -579,10 +579,10 @@ class RatingService {
         try {
             const url = `${RATINGS_API_URL}/api/episode/id/${episodeId}`;
             console.log(`Fetching episode rating by ID from local dataset:`, url);
-            
+
             const data = await Utils.makeRequest(url);
             console.log('Episode by ID API response:', data);
-            
+
             if (data?.rating && !data.error) {
                 return {
                     rating: data.rating,
@@ -591,7 +591,7 @@ class RatingService {
                     type: 'episode'
                 };
             }
-            
+
             console.log('⚠️ No episode rating found by ID in local dataset');
             return null;
         } catch (error) {
@@ -612,7 +612,7 @@ class ManifestService {
             resources: ['stream'],
             types: ['movie', 'series'],
             catalogs: [],
-            idPrefixes: ['tt', 'kitsu'], // NEW: Added 'kitsu' prefix
+            idPrefixes: ['tt', 'kitsu'],
             behaviorHints: {
                 configurable: true,
                 configurationRequired: false
@@ -620,6 +620,7 @@ class ManifestService {
         };
     }
 }
+
 
 // Stream Service
 class StreamService {
@@ -644,34 +645,29 @@ class StreamService {
         if (type === 'series_fallback') {
             return {
                 name: streamName,
-                description: `❌  Episode rating not available\n⭐  IMDb Series Rating: ${formattedRating} ${votesText}`
+                description: `❌  Episode rating not available\n⭐  IMDb Series Rating: ${formattedRating}${votesText}`
             };
         }
        
         if (format === 'singleline') {
             return {
                 name: streamName,
-                description: `⭐  IMDb:  ${formattedRating} ${votesText}`,
+                description: `⭐  IMDb:  ${formattedRating}${votesText}`
             };
         }
        
-        // Regular multi-line format for episode ratings
-        const separator = "───────────────";
-        const ratingLine = `⭐  IMDb:  ${formattedRating}`;
-        const totalWidth = ratingLine.length;
-        
+        // ── MULTILINE (episode) - using the new formatting approach
+        const ratingLine = `⭐  IMDb: ${formattedRating}`;
         const lines = [
-            separator,
+            '─'.repeat(ratingLine.length),          // separator
             ratingLine
         ];
-        
-        // Add votes on separate line if they exist, right-aligned
-        if (votesText) {
-            const votePadding = totalWidth - votesText.length; // -1 to shift left
-            lines.push(`${' '.repeat(Math.max(0, votePadding))}${votesText}`);
+        if (showVotes && formattedVotes) {
+            const firstDigitPos = ratingLine.search(/\d/);
+            const indent = ' '.repeat(firstDigitPos);
+            lines.push(`${indent}(${formattedVotes} votes)`);
         }
-        
-        lines.push(separator);
+        lines.push('─'.repeat(ratingLine.length));
        
         return {
             name: streamName,
@@ -679,8 +675,6 @@ class StreamService {
         };
     }
 
-
-   
     static createStream(displayConfig, imdbId, id, ratingData = null) {
         return {
             name: displayConfig.name,
@@ -694,18 +688,17 @@ class StreamService {
         };
     }
 
-    
     static async handleSeriesStreams(imdbId, season, episode, id, config) {
         console.log(`Processing episode ${season}x${episode} for series ${imdbId}`);
-       
+
         // Try episode-specific rating first
         let ratingData = await RatingService.getEpisodeRating(imdbId, season, episode);
-       
+
         // NEW: Smart fallback for season mismatches (like One Piece)
         // If no rating found and not season 1, try hardcoded mapping first
         if (!ratingData && season > 1) {
             console.log(`No rating found for S${season}E${episode}, trying hardcoded mapping...`);
-            
+
             // Try hardcoded mapping for known problematic series
             const hardcodedMapping = AnimeService.getHardcodedSeasonMapping(imdbId, season, episode);
             if (hardcodedMapping) {
@@ -719,13 +712,13 @@ class StreamService {
             // Fallback to static calculation if hardcoded mapping fails or doesn't exist
             if (!ratingData) {
                 console.log(`Hardcoded mapping failed or doesn't exist, trying static calculation fallback...`);
-                
+
                 // Calculate absolute episode number assuming each season has ~25 episodes
                 const estimatedAbsoluteEpisode = ((season - 1) * 25) + episode;
                 console.log(`Trying Season 1, Episode ${estimatedAbsoluteEpisode} (estimated from S${season}E${episode})`);
-                
+
                 ratingData = await RatingService.getEpisodeRating(imdbId, 1, estimatedAbsoluteEpisode);
-                
+
                 // If that doesn't work, try a few episodes around it (±2)
                 if (!ratingData) {
                     for (let offset of [-2, -1, 1, 2]) {
@@ -754,7 +747,7 @@ class StreamService {
                 }
             }
         }
-       
+
         if (ratingData) {
             // Explicitly set type for episode ratings
             ratingData.type = 'episode';
@@ -763,11 +756,11 @@ class StreamService {
             console.log(`✅ Added episode rating stream: ${ratingData.rating}/10`);
             return [stream];
         }
-       
+
         // Fallback to series rating with clear indication
         console.log('No episode rating found, trying series rating as fallback...');
         ratingData = await RatingService.getRating(imdbId);
-       
+
         if (ratingData) {
             ratingData.type = 'series_fallback';
             const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type);
@@ -775,34 +768,33 @@ class StreamService {
             console.log(`✅ Added series fallback rating stream: ${ratingData.rating}/10`);
             return [stream];
         }
-       
+
         // No rating available at all
         const displayConfig = this.formatRatingDisplay(
             { rating: 'Not Available', votes: '' },
             config,
             'not_available'
         );
-       
+
         const stream = this.createStream(displayConfig, imdbId, id);
-       
+
         console.log('❌ Added "no rating" stream');
         return [stream];
     }
 
-
     static async handleMovieStreams(id, config) {
         console.log(`Processing movie: ${id}`);
-        
+
         // 1️⃣ Try normal movie/series rating first
         let ratingData = await RatingService.getRating(id);
-        
+
         // 2️⃣ If nothing came back AND the id looks like an IMDb tconst,
         //    treat it as a TV-episode id (FIX for Cinemeta)
         if (!ratingData && /^tt\d+$/.test(id)) {
             console.log(`No movie rating found for ${id}, trying as episode ID...`);
             ratingData = await RatingService.getEpisodeRatingById(id);
         }
-        
+
         if (ratingData) {
             const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type || 'movie');
             const stream = this.createStream(displayConfig, id, id, ratingData);
@@ -812,15 +804,15 @@ class StreamService {
 
         // No rating available
         const displayConfig = this.formatRatingDisplay(
-            { rating: 'Not Available', votes: '' }, 
+            { rating: 'Not Available', votes: '' },
             config
         );
-        
+
         const stream = this.createStream({
             name: displayConfig.name,
-            description: displayConfig.description.replace(/⭐.*/, '⭐ IMDb Rating: Not Available')
+            description: displayConfig.description.replace(/⭐.*/, '⭐  IMDb Movie Rating: Not Available')
         }, id, id);
-        
+
         console.log('❌ Added "no rating" stream for movie');
         return [stream];
     }
@@ -828,7 +820,7 @@ class StreamService {
     // UPDATED: Enhanced getStreams method with anime support
     static async getStreams(type, id, config) {
         console.log(`🎬 StreamService.getStreams called with type="${type}", id="${id}"`);
-        
+
         const parsedId = Utils.parseContentId(id);
         if (!parsedId) {
             console.log('❌ Could not parse content ID');
@@ -854,21 +846,35 @@ class StreamService {
                     return this.createNoRatingStream(config, parsedId.originalId);
                 }
                 console.log(`✅ Mapped to IMDb ID: ${imdbId}`);
-                
+
                 // Get proper season info for Kitsu content
                 if (parsedId.episode) {
                     // For manual mappings, we can extract season info without re-triggering search
                     if (AnimeService.MANUAL_MAPPINGS && AnimeService.MANUAL_MAPPINGS[parsedId.kitsuId]) {
                         console.log(`📋 Using manual mapping - extracting season from known title`);
-                        // For Avatar, we know the pattern: Book 1/2/3
-                        if (['7936', '7937', '7938'].includes(parsedId.kitsuId)) {
-                            const seasonMap = { '7936': 1, '7937': 2, '7938': 3 };
-                            parsedId.season = seasonMap[parsedId.kitsuId];
-                            console.log(`📺 Avatar season mapping: Kitsu ${parsedId.kitsuId} → Season ${parsedId.season}, Episode ${parsedId.episode}`);
+                        
+                        // Enhanced season mapping for both Avatar and Korra
+                        const KITSU_SEASON_MAPPINGS = {
+                            // Avatar: The Last Airbender
+                            '7936': { season: 1, name: 'Book 1: Air' },      // Avatar Book 1
+                            '7937': { season: 2, name: 'Book 2: Earth' },    // Avatar Book 2  
+                            '7926': { season: 3, name: 'Book 3: Fire' },     // Avatar Book 3
+                            
+                            // Legend of Korra
+                            '7939': { season: 1, name: 'Book 1: Air' },      // Korra Book 1
+                            '7938': { season: 2, name: 'Book 2: Spirits' },  // Korra Book 2
+                            '8077': { season: 3, name: 'Book 3: Change' },   // Korra Book 3 ← THIS IS THE FIX
+                            '8706': { season: 4, name: 'Book 4: Balance' }   // Korra Book 4
+                        };
+                        
+                        const seasonMapping = KITSU_SEASON_MAPPINGS[parsedId.kitsuId];
+                        if (seasonMapping) {
+                            parsedId.season = seasonMapping.season;
+                            console.log(`📺 Season mapping: Kitsu ${parsedId.kitsuId} (${seasonMapping.name}) → Season ${parsedId.season}, Episode ${parsedId.episode}`);
                         } else {
-                            // For other manual mappings, use default season 1
+                            // Fallback for other manual mappings
                             parsedId.season = 1;
-                            console.log(`📺 Manual mapping default: Season ${parsedId.season}, Episode ${parsedId.episode}`);
+                            console.log(`📺 Manual mapping fallback: Season ${parsedId.season}, Episode ${parsedId.episode}`);
                         }
                     } else {
                         // Only call getKitsuSeasonInfo for non-manual mappings
@@ -900,7 +906,7 @@ class StreamService {
     // NEW: Helper method for no rating streams
     static createNoRatingStream(config, originalId, imdbId = null) {
         const displayConfig = this.formatRatingDisplay(
-            { rating: 'Not Available', votes: '' }, 
+            { rating: 'Not Available', votes: '' },
             config
         );
 
@@ -908,7 +914,7 @@ class StreamService {
             name: displayConfig.name,
             description: displayConfig.description.replace(/⭐.*/, '⭐ IMDb Rating: Not Available')
         }, imdbId, originalId);
-        
+
         console.log('❌ Added "no rating" stream');
         return [stream];
     }
@@ -969,32 +975,32 @@ class RouteHandler {
     static async handleStream(pathname, searchParams) {
         const pathParts = pathname.split('/').filter(Boolean);
         const streamIndex = pathParts.indexOf('stream');
-        
+
         if (streamIndex === -1 || pathParts.length < streamIndex + 3) {
             throw new Error('Invalid stream request format');
         }
 
         const type = pathParts[streamIndex + 1];
         let id = pathParts[streamIndex + 2];
-        
+
         if (id.endsWith('.json')) {
             id = id.slice(0, -5);
         }
-        
+
         const configStr = searchParams.get?.('config') || null;
         const config = Utils.parseConfig(configStr);
-        
+
         console.log('Stream request with config:', config);
-        
+
         const streams = await StreamService.getStreams(type, id, config);
         console.log(`Returning ${streams.length} streams`);
-        
+
         return { streams };
     }
 
     static handleHealth() {
-        return { 
-            status: 'OK', 
+        return {
+            status: 'OK',
             time: new Date().toISOString(),
             version: '2.0.0',
             ratingsAPI: RATINGS_API_URL
@@ -1027,7 +1033,7 @@ module.exports = async (req, res) => {
 
         const { pathname, searchParams, baseUrl } = Utils.parseUrl(req);
         const cleanPath = Utils.cleanPathname(pathname);
-        
+
         console.log(`Processing request: ${req.method} ${cleanPath}`);
 
         // Handle configuration page
@@ -1064,7 +1070,7 @@ module.exports = async (req, res) => {
     } catch (error) {
         Utils.setCORSHeaders(res);
         console.error('Uncaught error:', error);
-        
+
         res.statusCode = error.message === 'Invalid stream request format' ? 404 : 500;
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify({
@@ -1077,9 +1083,9 @@ module.exports = async (req, res) => {
 // Development server
 if (require.main === module) {
     const port = process.env.PORT || 3000;
-    
+
     const server = http.createServer(module.exports);
-    
+
     server.listen(port, () => {
         console.log(`🎬 IMDb Ratings addon running on port ${port}`);
         console.log(`📋 Configuration page: http://localhost:${port}/configure`);
