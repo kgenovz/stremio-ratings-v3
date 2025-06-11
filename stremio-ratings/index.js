@@ -667,7 +667,7 @@ class StreamService {
         
         // Add votes on separate line if they exist, right-aligned
         if (votesText) {
-            const votePadding = totalWidth - votesText.length - 1; // -1 to shift left
+            const votePadding = totalWidth - votesText.length; // -1 to shift left
             lines.push(`${' '.repeat(Math.max(0, votePadding))}${votesText}`);
         }
         
