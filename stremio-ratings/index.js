@@ -658,7 +658,7 @@ class StreamService {
         // Regular multi-line format for episode ratings
         const separator = "───────────────";
         const ratingLine = `⭐  IMDb:  ${formattedRating}`;
-        const totalWidth = separator.length;
+        const totalWidth = ratingLine.length;
         
         const lines = [
             separator,
