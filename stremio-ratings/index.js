@@ -655,24 +655,30 @@ class StreamService {
             };
         }
        
-        // Regular multi-line format for episode ratings with dynamic alignment
+        // Regular multi-line format for episode ratings
         const separator = "───────────────";
-        const leftCol = `⭐  IMDb:  ${formattedRating}`;
-        const rightCol = votesText;
+        const ratingLine = `⭐  IMDb:  ${formattedRating}`;
         const totalWidth = separator.length;
-        const spaceBetween = Math.max(1, totalWidth - leftCol.length - rightCol.length - 1);
         
         const lines = [
             separator,
-            `${leftCol}${' '.repeat(spaceBetween)}${rightCol}`,
-            separator
+            ratingLine
         ];
+        
+        // Add votes on separate line if they exist, right-aligned
+        if (votesText) {
+            const votePadding = totalWidth - votesText.length - 1; // -1 to shift left
+            lines.push(`${' '.repeat(Math.max(0, votePadding))}${votesText}`);
+        }
+        
+        lines.push(separator);
        
         return {
             name: streamName,
             description: lines.join('\n')
         };
     }
+
 
    
     static createStream(displayConfig, imdbId, id, ratingData = null) {
