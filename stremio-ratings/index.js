@@ -645,7 +645,7 @@ class StreamService {
         if (type === 'series_fallback') {
             return {
                 name: streamName,
-                description: `❌  Episode rating not available\n⭐  IMDb Series Rating: ${formattedRating}${votesText}`
+                description: `❌  Episode rating not available\n⭐  IMDb Series Rating:  ${formattedRating} ${votesText}`
             };
         }
        
