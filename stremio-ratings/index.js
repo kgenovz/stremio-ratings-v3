@@ -188,10 +188,28 @@ class Utils {
 
 // NEW: Anime Mapping Service
 class AnimeService {
+    // Manual mappings for problematic Kitsu IDs
+    static MANUAL_MAPPINGS = {
+        '7936': 'tt0417299', // Avatar: The Last Airbender - Book 1: Air
+        '7937': 'tt0417299', // Avatar: The Last Airbender - Book 2: Earth
+        '7938': 'tt0417299', // Avatar: The Last Airbender - Book 3: Fire
+        '7939': 'tt1695360', // Legend of Korra - Book 1: Air
+        '8765': 'tt1695360', // Legend of Korra - Book 2: Spirits
+        '8766': 'tt1695360', // Legend of Korra - Book 3: Change
+        '8767': 'tt1695360', // Legend of Korra - Book 4: Balance
+    };
+
     // Enhanced Kitsu to IMDb mapping with multiple search strategies
     static async getImdbFromKitsu(kitsuId) {
         try {
             console.log(`Auto-mapping Kitsu ID ${kitsuId} to IMDb...`);
+
+            // Check for manual mapping first
+            if (this.MANUAL_MAPPINGS[kitsuId]) {
+                const imdbId = this.MANUAL_MAPPINGS[kitsuId];
+                console.log(`Using manual mapping: ${kitsuId} → ${imdbId}`);
+                return imdbId;
+            }
 
             // Get anime metadata from Kitsu
             const kitsuUrl = `https://kitsu.io/api/edge/anime/${kitsuId}`;
