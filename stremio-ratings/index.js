@@ -322,10 +322,17 @@ class AnimeService {
                         const candidateTitle = c.l.toLowerCase();
                         const searchTitle = title.toLowerCase();
                         
-                        // If it's marked as TV series, it's likely the main series
+                        // PRIORITY 1: TV series that matches the search title
+                        if (c.q === 'TV series' && (
+                            candidateTitle === searchTitle ||
+                            candidateTitle.includes(searchTitle) ||
+                            searchTitle.includes(candidateTitle)
+                        )) return true;
+                        
+                        // PRIORITY 2: Any TV series (if no matching TV series found)
                         if (c.q === 'TV series') return true;
                         
-                        // Exact match or very close match
+                        // PRIORITY 3: Exact match or very close match
                         if (candidateTitle === searchTitle) return true;
                         
                         // Avoid episode-specific titles - be more specific about what constitutes episodes
@@ -625,8 +632,8 @@ class StreamService {
             return {
                 name: streamName,
                 description: format === 'singleline' 
-                    ? '✖️ Episode rating not available' 
-                    : '✖️ Episode rating not available\n⭐ IMDb Series Rating: Not Available'
+                    ? '❌ Episode rating not available' 
+                    : '❌ Episode rating not available\n⭐ IMDb Series Rating: Not Available'
             };
         }
        
@@ -649,14 +656,14 @@ class StreamService {
             // Special multiline format for series fallback ratings
             return {
                 name: streamName,
-                description: `✖️ Episode rating not available\n⭐ IMDb Series Rating: ${formattedRating}${votesText}`
+                description: `❌ Episode rating not available\n⭐ IMDb Series Rating:  ${formattedRating} ${votesText}`
             };
         }
        
         // Regular multi-line format for episode ratings
         const lines = [
             "───────────────",
-            `⭐ IMDb  :  ${formattedRating}`,
+            `⭐ IMDb:  ${formattedRating}`,
             `${votesText}`,
             "───────────────"
         ];
