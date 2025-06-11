@@ -663,7 +663,7 @@ class StreamService {
         // Regular multi-line format for episode ratings
         const lines = [
             "───────────────",
-            `⭐ IMDb:  ${formattedRating}`,
+            `⭐   IMDb:  ${formattedRating}`,
             `${votesText}`,
             "───────────────"
         ];
