@@ -589,6 +589,34 @@ class StreamService {
         // Try episode-specific rating first
         let ratingData = await RatingService.getEpisodeRating(imdbId, season, episode);
        
+        // NEW: Smart fallback for season mismatches (like One Piece)
+        // If no rating found and not season 1, try season 1 with calculated episode number
+        if (!ratingData && season > 1) {
+            console.log(`No rating found for S${season}E${episode}, trying Season 1 fallback...`);
+            
+            // Calculate absolute episode number assuming each season has ~25 episodes
+            // This is a reasonable default for most anime series
+            const estimatedAbsoluteEpisode = ((season - 1) * 25) + episode;
+            console.log(`Trying Season 1, Episode ${estimatedAbsoluteEpisode} (estimated from S${season}E${episode})`);
+            
+            ratingData = await RatingService.getEpisodeRating(imdbId, 1, estimatedAbsoluteEpisode);
+            
+            // If that doesn't work, try a few episodes around it (±2)
+            if (!ratingData) {
+                for (let offset of [-2, -1, 1, 2]) {
+                    const tryEpisode = estimatedAbsoluteEpisode + offset;
+                    if (tryEpisode > 0) {
+                        console.log(`Trying Season 1, Episode ${tryEpisode} (offset ${offset})`);
+                        ratingData = await RatingService.getEpisodeRating(imdbId, 1, tryEpisode);
+                        if (ratingData) {
+                            console.log(`✅ Found rating with offset ${offset}: Episode ${tryEpisode}`);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+       
         if (ratingData) {
             // Explicitly set type for episode ratings
             ratingData.type = 'episode';
