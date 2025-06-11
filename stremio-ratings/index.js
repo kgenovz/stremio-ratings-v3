@@ -660,7 +660,7 @@ class StreamService {
         const leftCol = `⭐  IMDb:  ${formattedRating}`;
         const rightCol = votesText;
         const totalWidth = separator.length;
-        const spaceBetween = Math.max(1, totalWidth - leftCol.length - rightCol.length);
+        const spaceBetween = Math.max(1, totalWidth - leftCol.length - rightCol.length - 1);
         
         const lines = [
             separator,
