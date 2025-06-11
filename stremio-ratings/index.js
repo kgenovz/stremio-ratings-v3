@@ -416,6 +416,124 @@ class AnimeService {
             return null;
         }
     }
+
+    // NEW: Get series title from IMDb ID
+    static async getSeriesTitleFromImdb(imdbId) {
+        try {
+            const url = `https://v2.sg.media-imdb.com/suggestion/t/${imdbId}.json`;
+            const response = await Utils.makeRequest(url);
+            
+            if (response?.d?.length > 0) {
+                return { title: response.d[0].l };
+            }
+            return null;
+        } catch (error) {
+            console.error(`Error getting series title for ${imdbId}:`, error);
+            return null;
+        }
+    }
+
+    // NEW: Get TVDB season/episode mapping
+    static async getTVDBEpisodeMapping(imdbId, season, episode) {
+        try {
+            console.log(`Getting TVDB mapping for ${imdbId} S${season}E${episode}...`);
+            
+            // First, get TVDB series ID from IMDb ID
+            const tvdbSeriesId = await this.getTVDBSeriesId(imdbId);
+            if (!tvdbSeriesId) {
+                console.log(`No TVDB series ID found for ${imdbId}`);
+                return null;
+            }
+            
+            console.log(`Found TVDB series ID: ${tvdbSeriesId}`);
+            
+            // Get all seasons data from TVDB
+            const seasonsData = await this.getTVDBSeasons(tvdbSeriesId);
+            if (!seasonsData) {
+                console.log(`No TVDB seasons data found for ${tvdbSeriesId}`);
+                return null;
+            }
+            
+            // Calculate absolute episode number based on TVDB data
+            let absoluteEpisode = 0;
+            for (let s = 1; s < season; s++) {
+                const seasonData = seasonsData.find(seasonObj => seasonObj.number === s);
+                if (seasonData) {
+                    absoluteEpisode += seasonData.episodeCount;
+                    console.log(`Season ${s}: ${seasonData.episodeCount} episodes (running total: ${absoluteEpisode})`);
+                }
+            }
+            absoluteEpisode += episode;
+            
+            console.log(`TVDB mapping: S${season}E${episode} → S1E${absoluteEpisode}`);
+            return { season: 1, episode: absoluteEpisode };
+            
+        } catch (error) {
+            console.error('Error getting TVDB mapping:', error);
+            return null;
+        }
+    }
+
+    static async getTVDBSeriesId(imdbId) {
+        try {
+            // TVDB search endpoint to find series by IMDb ID
+            const response = await Utils.makeRequest(`https://api4.thetvdb.com/v4/search?query=${imdbId}&type=series`);
+            return response?.data?.[0]?.tvdb_id;
+        } catch (error) {
+            console.error(`Error getting TVDB series ID for ${imdbId}:`, error);
+            return null;
+        }
+    }
+
+    static async getTVDBSeasons(tvdbId) {
+        try {
+            // Get season episode counts
+            const response = await Utils.makeRequest(`https://api4.thetvdb.com/v4/series/${tvdbId}/episodes/summary`);
+            return response?.data?.seasons;
+        } catch (error) {
+            console.error(`Error getting TVDB seasons for ${tvdbId}:`, error);
+            return null;
+        }
+    }
+
+    // NEW: Find episode by title using IMDb suggestions
+    static async findEpisodeByTitle(seriesImdbId, season, episode) {
+        try {
+            console.log(`Trying episode title matching via IMDb suggestions for S${season}E${episode}...`);
+            
+            // First get the series title from IMDb suggestions
+            const seriesData = await this.getSeriesTitleFromImdb(seriesImdbId);
+            if (!seriesData) {
+                console.log(`Could not get series title for ${seriesImdbId}`);
+                return null;
+            }
+            
+            console.log(`Series title: "${seriesData.title}"`);
+            
+            // Search for specific episode with multiple query formats
+            const queries = [
+                `${seriesData.title} season ${season} episode ${episode}`,
+                `${seriesData.title} S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')}`,
+                `${seriesData.title} ${season}x${episode}`
+            ];
+            
+            for (const query of queries) {
+                console.log(`Searching IMDb for: "${query}"`);
+                const episodeId = await this.searchImdbByTitle(query);
+                if (episodeId && episodeId !== seriesImdbId) {
+                    console.log(`Found episode ID: ${episodeId} for "${query}"`);
+                    return episodeId;
+                }
+            }
+            
+            console.log(`No episode found via title matching`);
+            return null;
+            
+        } catch (error) {
+            console.error(`Error finding episode by title:`, error);
+            return null;
+        }
+    }
 }
 
 // Rating Service
@@ -590,28 +708,54 @@ class StreamService {
         let ratingData = await RatingService.getEpisodeRating(imdbId, season, episode);
        
         // NEW: Smart fallback for season mismatches (like One Piece)
-        // If no rating found and not season 1, try season 1 with calculated episode number
+        // If no rating found and not season 1, try TVDB-based mapping
         if (!ratingData && season > 1) {
-            console.log(`No rating found for S${season}E${episode}, trying Season 1 fallback...`);
+            console.log(`No rating found for S${season}E${episode}, trying TVDB-based mapping...`);
             
-            // Calculate absolute episode number assuming each season has ~25 episodes
-            // This is a reasonable default for most anime series
-            const estimatedAbsoluteEpisode = ((season - 1) * 25) + episode;
-            console.log(`Trying Season 1, Episode ${estimatedAbsoluteEpisode} (estimated from S${season}E${episode})`);
-            
-            ratingData = await RatingService.getEpisodeRating(imdbId, 1, estimatedAbsoluteEpisode);
-            
-            // If that doesn't work, try a few episodes around it (±2)
+            // Try TVDB-based mapping instead of static calculation
+            const tvdbMapping = await AnimeService.getTVDBEpisodeMapping(imdbId, season, episode);
+            if (tvdbMapping) {
+                console.log(`TVDB mapped S${season}E${episode} to S${tvdbMapping.season}E${tvdbMapping.episode}`);
+                ratingData = await RatingService.getEpisodeRating(imdbId, tvdbMapping.season, tvdbMapping.episode);
+                if (ratingData) {
+                    console.log(`✅ Found rating via TVDB mapping: ${ratingData.rating}/10`);
+                }
+            }
+
+            // Fallback to static calculation if TVDB fails
             if (!ratingData) {
-                for (let offset of [-2, -1, 1, 2]) {
-                    const tryEpisode = estimatedAbsoluteEpisode + offset;
-                    if (tryEpisode > 0) {
-                        console.log(`Trying Season 1, Episode ${tryEpisode} (offset ${offset})`);
-                        ratingData = await RatingService.getEpisodeRating(imdbId, 1, tryEpisode);
-                        if (ratingData) {
-                            console.log(`✅ Found rating with offset ${offset}: Episode ${tryEpisode}`);
-                            break;
+                console.log(`TVDB mapping failed, trying static calculation fallback...`);
+                
+                // Calculate absolute episode number assuming each season has ~25 episodes
+                const estimatedAbsoluteEpisode = ((season - 1) * 25) + episode;
+                console.log(`Trying Season 1, Episode ${estimatedAbsoluteEpisode} (estimated from S${season}E${episode})`);
+                
+                ratingData = await RatingService.getEpisodeRating(imdbId, 1, estimatedAbsoluteEpisode);
+                
+                // If that doesn't work, try a few episodes around it (±2)
+                if (!ratingData) {
+                    for (let offset of [-2, -1, 1, 2]) {
+                        const tryEpisode = estimatedAbsoluteEpisode + offset;
+                        if (tryEpisode > 0) {
+                            console.log(`Trying Season 1, Episode ${tryEpisode} (offset ${offset})`);
+                            ratingData = await RatingService.getEpisodeRating(imdbId, 1, tryEpisode);
+                            if (ratingData) {
+                                console.log(`✅ Found rating with offset ${offset}: Episode ${tryEpisode}`);
+                                break;
+                            }
                         }
+                    }
+                }
+            }
+
+            // NEW: If TVDB and static fallbacks fail, try episode title matching via IMDb search
+            if (!ratingData) {
+                console.log(`All fallbacks failed, trying episode title matching...`);
+                const episodeId = await AnimeService.findEpisodeByTitle(imdbId, season, episode);
+                if (episodeId) {
+                    ratingData = await RatingService.getEpisodeRatingById(episodeId);
+                    if (ratingData) {
+                        console.log(`✅ Found rating via episode title matching: ${episodeId}`);
                     }
                 }
             }
