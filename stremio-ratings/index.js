@@ -497,40 +497,53 @@ class StreamService {
         const { rating, votes } = ratingData;
         const { showVotes, format, streamName, voteFormat, ratingFormat } = config;
        
+        // Handle "not available" case
+        if (type === 'not_available') {
+            return {
+                name: streamName,
+                description: format === 'singleline' 
+                    ? '✖️ Episode rating not available' 
+                    : '✖️ Episode rating not available\n⭐ IMDb Series Rating: Not Available'
+            };
+        }
+       
         // Format votes and rating according to config
         const formattedVotes = Utils.formatVotes(votes, voteFormat);
         const formattedRating = Utils.formatRating(rating, ratingFormat);
         const votesText = showVotes && formattedVotes ? ` (${formattedVotes} votes)` : '';
        
-        // Only show type indicator for series ratings (not episode ratings)
-        const typeIndicator = type === 'series_fallback' ? " (Series Rating)" : "";
-       
         if (format === 'singleline') {
+            // Only show type indicator for series ratings (not episode ratings)
+            const typeIndicator = type === 'series_fallback' ? " (Series Rating)" : "";
             return {
                 name: streamName,
-                description: `⭐  IMDb:  ${formattedRating}  ${typeIndicator}  ${votesText}`,
+                description: `⭐  IMDb:  ${formattedRating} ${typeIndicator} ${votesText}`,
             };
         }
        
         // Multi-line format
+        if (type === 'series_fallback') {
+            // Special multiline format for series fallback ratings
+            return {
+                name: streamName,
+                description: `✖️ Episode rating not available\n⭐ IMDb Series Rating: ${formattedRating}${votesText}`
+            };
+        }
+       
+        // Regular multi-line format for episode ratings
         const lines = [
             "───────────────",
-            `⭐ IMDb        : ${formattedRating}`,
+            `⭐ IMDb  :  ${formattedRating}`,
             `${votesText}`,
             "───────────────"
         ];
-       
-        // Only add type indicator for series ratings in multi-line format
-        if (type === 'series_fallback') {
-            lines.splice(2, 0, "(Series Rating)");
-        }
        
         return {
             name: streamName,
             description: lines.join('\n')
         };
     }
-
+    
     static createStream(displayConfig, imdbId, id, ratingData = null) {
         return {
             name: displayConfig.name,
@@ -543,7 +556,7 @@ class StreamService {
             type: "other"
         };
     }
-
+    
     static async handleSeriesStreams(imdbId, season, episode, id, config) {
         console.log(`Processing episode ${season}x${episode} for series ${imdbId}`);
        
@@ -562,7 +575,7 @@ class StreamService {
         // Fallback to series rating with clear indication
         console.log('No episode rating found, trying series rating as fallback...');
         ratingData = await RatingService.getRating(imdbId);
-        
+       
         if (ratingData) {
             ratingData.type = 'series_fallback';
             const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type);
@@ -570,7 +583,7 @@ class StreamService {
             console.log(`✅ Added series fallback rating stream: ${ratingData.rating}/10`);
             return [stream];
         }
-        
+       
         // No rating available at all
         const displayConfig = this.formatRatingDisplay(
             { rating: 'Not Available', votes: '' },
@@ -578,14 +591,12 @@ class StreamService {
             'not_available'
         );
        
-        const stream = this.createStream({
-            name: displayConfig.name,
-            description: displayConfig.description.replace(/⭐.*/, '⭐ IMDb Rating: Not Available')
-        }, imdbId, id);
+        const stream = this.createStream(displayConfig, imdbId, id);
        
         console.log('❌ Added "no rating" stream');
         return [stream];
     }
+
 
     static async handleMovieStreams(id, config) {
         console.log(`Processing movie: ${id}`);
