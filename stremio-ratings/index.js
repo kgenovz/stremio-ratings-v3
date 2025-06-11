@@ -627,13 +627,11 @@ class StreamService {
         const { rating, votes } = ratingData;
         const { showVotes, format, streamName, voteFormat, ratingFormat } = config;
        
-        // Handle "not available" case
+        // Handle "not available" case - now consistent for both formats
         if (type === 'not_available') {
             return {
                 name: streamName,
-                description: format === 'singleline' 
-                    ? '❌ Episode rating not available' 
-                    : '❌ Episode rating not available\n⭐ IMDb Series Rating: Not Available'
+                description: '❌  Episode rating not available\n⭐  IMDb Series Rating:  Not Available'
             };
         }
        
@@ -642,29 +640,26 @@ class StreamService {
         const formattedRating = Utils.formatRating(rating, ratingFormat);
         const votesText = showVotes && formattedVotes ? ` (${formattedVotes} votes)` : '';
        
-        if (format === 'singleline') {
-            // Only show type indicator for series ratings (not episode ratings)
-            const typeIndicator = type === 'series_fallback' ? " (Series Rating)" : "";
+        // Handle series fallback case - now consistent for both formats
+        if (type === 'series_fallback') {
             return {
                 name: streamName,
-                description: `⭐  IMDb:  ${formattedRating} ${typeIndicator} ${votesText}`,
+                description: `❌  Episode rating not available\n⭐  IMDb Series Rating: ${formattedRating} ${votesText}`
             };
         }
-       
-        // Multi-line format
-        if (type === 'series_fallback') {
-            // Special multiline format for series fallback ratings
+        
+        if (format === 'singleline') {
             return {
                 name: streamName,
-                description: `❌ Episode rating not available\n⭐ IMDb Series Rating:  ${formattedRating} ${votesText}`
+                description: `⭐  IMDb:  ${formattedRating} ${votesText}`,
             };
         }
        
         // Regular multi-line format for episode ratings
         const lines = [
             "───────────────",
-            `⭐   IMDb:  ${formattedRating}`,
-            `${votesText}`,
+            `⭐  IMDb:  ${formattedRating}`,
+            `           ${votesText}`,
             "───────────────"
         ];
        
@@ -673,7 +668,7 @@ class StreamService {
             description: lines.join('\n')
         };
     }
-    
+   
     static createStream(displayConfig, imdbId, id, ratingData = null) {
         return {
             name: displayConfig.name,
@@ -686,6 +681,7 @@ class StreamService {
             type: "other"
         };
     }
+
     
     static async handleSeriesStreams(imdbId, season, episode, id, config) {
         console.log(`Processing episode ${season}x${episode} for series ${imdbId}`);

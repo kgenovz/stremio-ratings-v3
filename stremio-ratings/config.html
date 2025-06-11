@@ -140,16 +140,75 @@
         }
 
         .preview {
-            background: #2d2d2d;
+            background: #1a1a2e;
             padding: 20px;
             border-radius: 8px;
-            font-family: 'Courier New', monospace;
-            white-space: pre-line;
             margin: 15px 0;
             border: 1px solid #555555;
             min-height: 120px;
             font-size: 14px;
             line-height: 1.4;
+        }
+
+        .stremio-preview {
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .stream-item {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            padding: 12px 16px;
+            border-bottom: 1px solid #0f3460;
+            background: #16213e;
+        }
+
+        .stream-item:last-child {
+            border-bottom: none;
+        }
+
+        .stream-name {
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .stream-content {
+            color: #ffffff;
+            font-size: 14px;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .stream-item-mobile {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 12px 16px;
+            border-bottom: 1px solid #0f3460;
+            background: #16213e;
+        }
+
+        .stream-item-mobile:last-child {
+            border-bottom: none;
+        }
+
+        .stream-name-mobile {
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            text-align: left;
+        }
+
+        .stream-content-mobile {
+            color: #ffffff;
+            font-size: 14px;
+            text-align: left;
         }
 
         .settings-grid {
@@ -306,7 +365,26 @@
     
     <div class="config">
         <h3>👁️ Live Preview</h3>
-        <div class="preview" id="preview">Loading preview...</div>
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 250px;">
+                <h4 style="color: #e0e0e0; margin-bottom: 10px; font-size: 1rem;">P.C.</h4>
+                <div class="preview stremio-preview" id="previewPC">
+                    <div class="stream-item">
+                        <div class="stream-name">Loading...</div>
+                        <div class="stream-content">Loading...</div>
+                    </div>
+                </div>
+            </div>
+            <div style="flex: 1; min-width: 250px;">
+                <h4 style="color: #e0e0e0; margin-bottom: 10px; font-size: 1rem;">Mobile</h4>
+                <div class="preview stremio-preview" id="previewMobile">
+                    <div class="stream-item-mobile">
+                        <div class="stream-name-mobile">Loading...</div>
+                        <div class="stream-content-mobile">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     
     <div class="config">
@@ -368,23 +446,46 @@
             
             currentConfig = config;
             
-            // Generate preview text with sample data
+            // Generate preview with sample data
             const sampleVotes = 45123;
-            const sampleRating = 9.3;
+            const sampleRating = 8.1;
             
             const formattedVotes = formatVotes(sampleVotes, voteFormat);
             const formattedRating = formatRating(sampleRating, ratingFormat);
             const votesText = showVotes ? ` (${formattedVotes} votes)` : '';
             
-            let preview;
+            let streamContent;
             
             if (format === 'singleline') {
-                preview = `📊 ${streamName}\n⭐ IMDb: ${formattedRating}${votesText}`;
+                streamContent = `⭐&ensp;IMDb:&ensp;${formattedRating} ${votesText}`;
             } else {
-                preview = `📊 ${streamName}\n───────────────\n⭐ IMDb: ${formattedRating}\n${votesText}\n(Episode Rating)\n───────────────`;
+                // Multi-line format - show as it would appear with line breaks
+                streamContent = `⭐&ensp;IMDb:&ensp;${formattedRating} ${showVotes ? '\n('+ formattedVotes + ' votes)' : ''}`;
             }
             
-            document.getElementById('preview').textContent = preview;
+            // Update the PC preview (centered layout)
+            const previewPC = document.getElementById('previewPC');
+            let pcStreamContent;
+            if (format === 'singleline') {
+                pcStreamContent = `⭐&ensp;IMDb:&ensp;${formattedRating} ${votesText}`;
+            } else {
+                pcStreamContent = `⭐&ensp;IMDb:&ensp;${formattedRating} ${showVotes ? '<br>('+ formattedVotes + ' votes)' : ''}`;
+            }
+            previewPC.innerHTML = `
+                <div class="stream-item" style="${format === 'multiline' ? '' : 'white-space: nowrap;'}">
+                    <div class="stream-name">${streamName}</div>
+                    <div class="stream-content">${pcStreamContent}</div>
+                </div>
+            `;
+            
+            // Update the Mobile preview (stacked layout)
+            const previewMobile = document.getElementById('previewMobile');
+            previewMobile.innerHTML = `
+                <div class="stream-item-mobile">
+                    <div class="stream-name-mobile">${streamName}</div>
+                    <div class="stream-content-mobile">${streamContent.replace(/\n/g, '<br>')}</div>
+                </div>
+            `;
             
             // Generate manifest URL with config
             const configStr = encodeURIComponent(JSON.stringify(config));
