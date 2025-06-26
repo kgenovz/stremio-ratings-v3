@@ -198,7 +198,7 @@
         .stream-content.multiline-display {
             display: flex;
             flex-direction: column;
-            align-items: flex-end; /* Aligns content lines to the right */
+            align-items: flex-start; /* Aligns content lines to the right */
             white-space: normal; /* Allow wrapping */
         }
 
@@ -221,7 +221,7 @@
             color: #ffffff;
             font-size: 14px;
             font-weight: 600;
-            margin-bottom: 4px;
+            margin-bottom: 5px;
             text-align: left;
         }
 
@@ -236,10 +236,20 @@
         .stream-content-mobile.multiline-display {
             display: flex;
             flex-direction: column;
+            width: 100%;
             align-items: flex-start; /* Aligns content lines to the left */
             white-space: normal; /* Allow wrapping */
         }
 
+        /* New styles for top and bottom lines */
+        .top-line, .bottom-line {
+            border-top: 1px solid rgba(255, 255, 255, 0.3); /* Lighter line color for subtlety */
+            width: 100%; /* Line spans full width of its container */
+            margin: 5px 0; /* Adjust vertical spacing as needed */
+            height: 1px; /* Ensure line is visible */
+            content: ''; /* Necessary for pseudo-elements if used */
+            display: block; /* Ensure it takes up its own line */
+        }
 
         .settings-grid {
             display: grid;
@@ -501,8 +511,10 @@
                     <div class="stream-item">
                         <div class="stream-name">${streamName}</div>
                         <div class="stream-content multiline-display">
+                            <div class="top-line"></div>
                             <div>⭐&ensp;IMDb:&ensp;${formattedRating}</div>
-                            ${showVotes ? `<div style="margin-right: .5em;">(${formattedVotes} votes)</div>` : ''}
+                            ${showVotes ? `<div style="margin-left: 2em;">(${formattedVotes} votes)</div>` : ''}
+                            <div class="bottom-line"></div>
                         </div>
                     </div>
                 `;
@@ -532,8 +544,10 @@
                     <div class="stream-item-mobile">
                         <div class="stream-name-mobile">${streamName}</div>
                         <div class="stream-content-mobile multiline-display">
+                            <div class="top-line"></div>
                             <div>⭐&ensp;IMDb:&ensp;${formattedRating}</div>
-                            ${showVotes ? `<div style="margin-left: 5em;">(${formattedVotes} votes)</div>` : ''}
+                            ${showVotes ? `<div style="margin-left: 2em;">(${formattedVotes} votes)</div>` : ''}
+                            <div class="bottom-line"></div>
                         </div>
                     </div>
                 `;
