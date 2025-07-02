@@ -162,58 +162,533 @@ class Utils {
         return null;
     }
 
-    // NEW: Extract season number from title
+    // Extract season number from title
     static extractSeasonFromTitle(title) {
-        // Look for season indicators in various formats
+        console.log(`🔍 Extracting season from title: "${title}"`);
+
+        // Look for season indicators in various formats (ordered by specificity)
         const patterns = [
-            /book\s*(\d+)/i,           // "Book 1", "Book 2"
-            /season\s*(\d+)/i,         // "Season 1", "Season 2"  
-            /part\s*(\d+)/i,           // "Part 1", "Part 2"
-            /第(\d+)期/i,              // Japanese "第2期" format
+            // MOST SPECIFIC PATTERNS FIRST (high confidence)
+
+            // "Title Season 3" - explicit season keyword
+            /season\s*(\d+)/i,           // "Season 1", "Season 2"
+            /\bS(\d+)\b/i,               // "S1", "S2" (word boundaries)
+
+            // "Title Part 3" - part indicators  
+            /part\s*(\d+)/i,             // "Part 1", "Part 2"
+            /\bP(\d+)\b/i,               // "P1", "P2" 
+
+            // "Title Book 3" - book/chapter indicators
+            /book\s*(\d+)/i,             // "Book 1", "Book 2"
+            /chapter\s*(\d+)/i,          // "Chapter 1", "Chapter 2"
+
+            // Japanese season indicators
+            /第(\d+)期/i,                // "第2期" format (Japanese)
+            /(\d+)期目/i,                // "2期目" format
+
+            // Ordinal indicators
             /\s(\d+)(st|nd|rd|th)\s+season/i, // "2nd Season"
+            /(\d+)(st|nd|rd|th)\s+series/i,   // "2nd Series"
+
+            // CONTEXTUAL NUMBER PATTERNS (medium confidence)
+
+            // "Title: 3" or "Title - 3" (with separators)
+            /[:\-]\s*(\d+)$/,            // "Title: 3", "Title - 3"
         ];
 
         for (const pattern of patterns) {
             const match = title.match(pattern);
             if (match) {
                 const seasonNum = parseInt(match[1]);
-                console.log(`Extracted season ${seasonNum} from title: "${title}"`);
-                return seasonNum;
+
+                if (seasonNum && seasonNum > 0 && seasonNum <= 50) { // Reasonable season range
+                    console.log(`✅ Extracted season ${seasonNum} from title: "${title}" using pattern: ${pattern}`);
+                    return seasonNum;
+                }
             }
         }
 
+        // SPECIAL CASE: Roman numerals (needs validation)
+        const romanMatch = title.match(/\s(II|III|IV|V|VI|VII|VIII|IX|X)$/i);
+        if (romanMatch) {
+            const romanMap = {
+                'II': 2, 'III': 3, 'IV': 4, 'V': 5,
+                'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10
+            };
+            const seasonNum = romanMap[romanMatch[1].toUpperCase()];
+
+            // ENHANCED: Validate if Roman numeral is likely a season
+            if (this.isLikelySeasonRoman(title, romanMatch[1], seasonNum)) {
+                console.log(`✅ Extracted season ${seasonNum} from title: "${title}" (Roman numeral validated)`);
+                return seasonNum;
+            } else {
+                console.log(`⚠️ Rejected Roman numeral ${romanMatch[1]} from title: "${title}" (likely part of title)`);
+            }
+        }
+
+        // SPECIAL CASE: Try the generic "Title Number" pattern with extra validation
+        const genericNumberMatch = title.match(/\s(\d+)$/);
+        if (genericNumberMatch) {
+            const number = parseInt(genericNumberMatch[1]);
+
+            // ENHANCED: Context-aware validation to avoid false positives
+            if (this.isLikelySeasonNumber(title, number)) {
+                console.log(`✅ Extracted season ${number} from title: "${title}" (validated as likely season)`);
+                return number;
+            } else {
+                console.log(`⚠️ Rejected number ${number} from title: "${title}" (likely part of title, not season)`);
+            }
+        }
+
+        console.log(`⚠️ No season found in title: "${title}", defaulting to season 1`);
         return 1; // Default to season 1 if no season found
+    }
+
+    static isLikelySeasonRoman(title, romanNumeral, seasonNumber) {
+        const titleLower = title.toLowerCase();
+        const roman = romanNumeral.toUpperCase();
+
+        // REJECT if "X" appears to be part of a word/identifier (common patterns)
+        const titleRomanPatterns = [
+            /\w+\s*x$/i,                  // "Hero X", "Generation X", "Project X"
+            /\bx$/i,                      // Just "X" at end after word boundary
+        ];
+
+        // Special handling for single "X" (most problematic)
+        if (roman === 'X') {
+            // Check for title-identifier patterns
+            for (const pattern of titleRomanPatterns) {
+                if (titleLower.match(pattern)) {
+                    console.log(`🚫 Roman numeral X appears to be part of title (pattern: ${pattern})`);
+                    return false;
+                }
+            }
+
+            // Additional check for single-letter identifiers
+            const singleLetterPatterns = [
+                /\s[a-z]$/i,              // "Title A", "Title B", "Title X"
+                /:\s*[a-z]$/i,            // "Title: X"
+                /\-\s*[a-z]$/i,           // "Title - X"
+            ];
+
+            for (const pattern of singleLetterPatterns) {
+                if (titleLower.match(pattern)) {
+                    console.log(`🚫 Single letter X appears to be identifier, not season`);
+                    return false;
+                }
+            }
+        }
+
+        // ACCEPT other Roman numerals (II, III, IV, etc.) - these are usually seasons
+        if (roman !== 'X') {
+            console.log(`✅ Roman numeral ${roman} likely a season (not single X)`);
+            return true;
+        }
+
+        // For "X", only accept if there's strong sequel context
+        const sequelKeywords = [
+            'season', 'part', 'series', 'saga', 'chronicle', 'generation'
+        ];
+
+        const hasSequelContext = sequelKeywords.some(keyword =>
+            titleLower.includes(keyword)
+        );
+
+        if (hasSequelContext) {
+            console.log(`✅ Roman numeral X accepted (has sequel context)`);
+            return true;
+        }
+
+        console.log(`❌ Roman numeral X rejected (no sequel context, likely identifier)`);
+        return false;
+
+
+        // REJECT if number is clearly part of the title (common patterns)
+        const titleNumberPatterns = [
+            /no\.?\s*\d+$/i,          // "Title No. 8", "Title No.8"
+            /number\s*\d+$/i,         // "Title Number 8"
+            /\b\d+$/,                 // Just check if preceded by word boundary
+        ];
+
+        // Check for title-number patterns
+        for (const pattern of titleNumberPatterns) {
+            if (titleLower.match(pattern)) {
+                console.log(`🚫 Number ${number} appears to be part of title (pattern: ${pattern})`);
+                return false;
+            }
+        }
+
+        // ACCEPT if number looks like a reasonable season (2-10 are common sequel seasons)
+        if (number >= 2 && number <= 10) {
+            // Additional check: does the title contain known anime sequel keywords?
+            const sequelKeywords = [
+                'academia', 'hero', 'slayer', 'titan', 'piece', 'ball', 'naruto',
+                'bleach', 'hunter', 'force', 'wars', 'saga', 'chronicle'
+            ];
+
+            const hasSequelKeyword = sequelKeywords.some(keyword =>
+                titleLower.includes(keyword)
+            );
+
+            if (hasSequelKeyword) {
+                console.log(`✅ Number ${number} likely a season (has sequel keyword + reasonable range)`);
+                return true;
+            }
+        }
+
+        // REJECT numbers outside reasonable season range or without context
+        console.log(`❌ Number ${number} rejected (outside reasonable season range or no sequel context)`);
+        return false;
+    }
+
+    // NEW: Smart validation to determine if a number is likely a season vs part of title
+    static isLikelySeasonNumber(title, number) {
+        const titleLower = title.toLowerCase();
+
+        // REJECT if number is clearly part of the title (common patterns)
+        const titleNumberPatterns = [
+            /no\.?\s*\d+$/i,          // "Title No. 8", "Title No.8"
+            /number\s*\d+$/i,         // "Title Number 8"
+            /\b\d+$/,                 // Just check if preceded by word boundary
+        ];
+
+        // Check for title-number patterns
+        for (const pattern of titleNumberPatterns) {
+            if (titleLower.match(pattern)) {
+                console.log(`🚫 Number ${number} appears to be part of title (pattern: ${pattern})`);
+                return false;
+            }
+        }
+
+        // ACCEPT if number looks like a reasonable season (2-10 are common sequel seasons)
+        if (number >= 2 && number <= 10) {
+            // Additional check: does the title contain known anime sequel keywords?
+            const sequelKeywords = [
+                'academia', 'hero', 'slayer', 'titan', 'piece', 'ball', 'naruto',
+                'bleach', 'hunter', 'force', 'wars', 'saga', 'chronicle'
+            ];
+
+            const hasSequelKeyword = sequelKeywords.some(keyword =>
+                titleLower.includes(keyword)
+            );
+
+            if (hasSequelKeyword) {
+                console.log(`✅ Number ${number} likely a season (has sequel keyword + reasonable range)`);
+                return true;
+            }
+        }
+
+        // REJECT numbers outside reasonable season range or without context
+        console.log(`❌ Number ${number} rejected (outside reasonable season range or no sequel context)`);
+        return false;
+    }
+
+    // for common anime title patterns
+    static normalizeAnimeTitle(title) {
+        // Remove common suffixes that might interfere with season detection
+        const normalizedTitle = title
+            .replace(/\s*(TV|OVA|ONA|Movie|Film|Special)$/i, '') // Remove media type
+            .replace(/\s*\(.*?\)$/, '') // Remove parenthetical info
+            .trim();
+
+        return normalizedTitle;
     }
 }
 
-// NEW: Anime Mapping Service
+// Anime Mapping Service
 class AnimeService {
-    // Manual mappings for problematic Kitsu IDs
+    // Configuration
+    static TMDB_API_KEY = process.env.TMDB_API_KEY || '5fd1aac6c1a9e4f9fd594d187a701881';
+    static TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+    static CACHE = new Map();
+    static CACHE_TTL = 60 * 60 * 1000; // 1 hour TTL
+    static REQUEST_QUEUE = [];
+    static PROCESSING_QUEUE = false;
+    static MAX_CONCURRENT_REQUESTS = 5;
+    static REQUEST_DELAY = 200;
+    static RATINGS_API_URL = process.env.RATINGS_API_URL || 'http://localhost:3001';
+
+    // Manual mappings for known problematic cases (keep as ultimate fallback)
     static MANUAL_MAPPINGS = {
-        '7936': 'tt0417299', // Avatar: The Last Airbender - Book 1: Air
-        '7937': 'tt0417299', // Avatar: The Last Airbender - Book 2: Earth
-        '7926': 'tt0417299', // Avatar: The Last Airbender - Book 3: Fire
-        '7939': 'tt1695360', // Legend of Korra - Book 1: Air
-        '7938': 'tt1695360', // Legend of Korra - Book 2: Spirits
-        '8077': 'tt1695360', // Legend of Korra - Book 3: Change
-        '8706': 'tt1695360', // Legend of Korra - Book 4: Balance
+        // ===== AVATAR: THE LAST AIRBENDER =====
+        '7936': {
+            imdbId: 'tt0417299',
+            season: 1,
+            episodeOffset: 0,
+            name: 'Avatar: The Last Airbender - Book 1: Air',
+            maxEpisodes: 20
+        },
+        '7937': {
+            imdbId: 'tt0417299',
+            season: 2,
+            episodeOffset: 0,
+            name: 'Avatar: The Last Airbender - Book 2: Earth',
+            maxEpisodes: 20
+        },
+        '7926': {
+            imdbId: 'tt0417299',
+            season: 3,
+            episodeOffset: 0,
+            name: 'Avatar: The Last Airbender - Book 3: Fire',
+            maxEpisodes: 21
+        },
+
+        // ===== LEGEND OF KORRA =====
+        '7939': {
+            imdbId: 'tt1695360',
+            season: 1,
+            episodeOffset: 0,
+            name: 'Legend of Korra - Book 1: Air',
+            maxEpisodes: 12
+        },
+        '7938': {
+            imdbId: 'tt1695360',
+            season: 2,
+            episodeOffset: 0,
+            name: 'Legend of Korra - Book 2: Spirits',
+            maxEpisodes: 14
+        },
+        '8077': {
+            imdbId: 'tt1695360',
+            season: 3,
+            episodeOffset: 0,
+            name: 'Legend of Korra - Book 3: Change',
+            maxEpisodes: 13
+        },
+        '8706': {
+            imdbId: 'tt1695360',
+            season: 4,
+            episodeOffset: 0,
+            name: 'Legend of Korra - Book 4: Balance',
+            maxEpisodes: 13
+        },
+
+        // ===== ARCANE =====
+        '45515': {
+            imdbId: 'tt11126994',
+            season: 2,
+            episodeOffset: 0,
+            name: 'Arcane - Season 2',
+            maxEpisodes: 9
+        },
+
+        // ===== ATTACK ON TITAN =====
+        // Note: Replace these placeholder IDs with actual Kitsu IDs when found
+
+        // Attack on Titan Season 3 Part 2 (Episodes 13-22 of Season 3)
+        '41982': {
+            imdbId: 'tt2560140',
+            season: 3,
+            episodeOffset: 12, // Part 2 Episode 1 = Season 3 Episode 13
+            name: 'Attack on Titan - Season 3 Part 2',
+            maxEpisodes: 10
+        },
+        /*
+        // Attack on Titan Season 4 Part 1 (Episodes 1-16 of Season 4)
+        'AOT_S4P1_KITSU_ID': {
+            imdbId: 'tt2560140',
+            season: 4,
+            episodeOffset: 0,
+            name: 'Attack on Titan - The Final Season Part 1',
+            maxEpisodes: 16
+        },
+
+        // Attack on Titan Season 4 Part 2 (Episodes 17-28 of Season 4)
+        'AOT_S4P2_KITSU_ID': {
+            imdbId: 'tt2560140',
+            season: 4,
+            episodeOffset: 16, // Part 2 Episode 1 = Season 4 Episode 17
+            name: 'Attack on Titan - The Final Season Part 2',
+            maxEpisodes: 12
+        },
+
+        // Attack on Titan Final Chapters Part 1
+        'AOT_FINAL_P1_KITSU_ID': {
+            imdbId: 'tt2560140',
+            season: 4,
+            episodeOffset: 28, // Final Part 1 Episode 1 = Season 4 Episode 29
+            name: 'Attack on Titan - The Final Season Final Chapters Part 1',
+            maxEpisodes: 2
+        },
+
+        // Attack on Titan Final Chapters Part 2
+        'AOT_FINAL_P2_KITSU_ID': {
+            imdbId: 'tt2560140',
+            season: 4,
+            episodeOffset: 30, // Final Part 2 Episode 1 = Season 4 Episode 31
+            name: 'Attack on Titan - The Final Season Final Chapters Part 2',
+            maxEpisodes: 4
+        },*/
     };
 
-    // Enhanced Kitsu to IMDb mapping with multiple search strategies
+    // Cached request wrapper
+    static async makeCachedRequest(url, options = {}) {
+        const cacheKey = url;
+        const cached = this.CACHE.get(cacheKey);
+
+        if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+            console.log(`[CACHE] HIT: ${url}`);
+            return cached.data;
+        }
+
+        console.log(`[CACHE] MISS: ${url}`);
+
+        try {
+            const response = await Utils.makeRequest(url);
+
+            if (response) {
+                this.CACHE.set(cacheKey, {
+                    data: response,
+                    timestamp: Date.now()
+                });
+
+                // Simple cache cleanup
+                if (this.CACHE.size > 200) {
+                    const oldestKey = this.CACHE.keys().next().value;
+                    this.CACHE.delete(oldestKey);
+                }
+            }
+
+            return response;
+        } catch (error) {
+            console.error(`Request failed for ${url}:`, error);
+            return null;
+        }
+    }
+
+
+    static async makeRateLimitedRequest(url, options = {}) {
+        return new Promise((resolve, reject) => {
+            this.REQUEST_QUEUE.push({ url, options, resolve, reject });
+            this.processQueue();
+        });
+    }
+
+
+    static async processQueue() {
+        if (this.PROCESSING_QUEUE || this.REQUEST_QUEUE.length === 0) {
+            return;
+        }
+
+        this.PROCESSING_QUEUE = true;
+
+        while (this.REQUEST_QUEUE.length > 0) {
+            const batch = this.REQUEST_QUEUE.splice(0, this.MAX_CONCURRENT_REQUESTS);
+
+            const promises = batch.map(async ({ url, options, resolve, reject }) => {
+                try {
+                    const result = await this.makeCachedRequest(url, options);
+                    resolve(result);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+
+            await Promise.all(promises);
+
+            if (this.REQUEST_QUEUE.length > 0) {
+                await new Promise(resolve => setTimeout(resolve, this.REQUEST_DELAY));
+            }
+        }
+
+        this.PROCESSING_QUEUE = false;
+    }
+
+
+    static async getKitsuMappingFromDatabase(kitsuId) {
+        try {
+            const url = `${this.RATINGS_API_URL}/api/kitsu-mapping/${kitsuId}`;
+            const response = await Utils.makeRequest(url);
+
+            if (response && response.imdbId && !response.error) {
+                return response.imdbId;
+            }
+
+            return null;
+        } catch (error) {
+            console.warn(`Failed to get Kitsu mapping from database:`, error);
+            return null;
+        }
+    }
+
+
+    static async saveKitsuMappingToDatabase(kitsuId, imdbId, source = 'api_discovery') {
+        try {
+            const url = `${this.RATINGS_API_URL}/api/kitsu-mapping`;
+            const payload = {
+                kitsuId: kitsuId,
+                imdbId: imdbId,
+                source: source,
+                timestamp: new Date().toISOString()
+            };
+
+            await this.makePostRequest(url, payload);
+            console.log(`💾 Saved mapping to database: ${kitsuId} → ${imdbId} (${source})`);
+        } catch (error) {
+            console.warn(`Failed to save Kitsu mapping to database:`, error);
+        }
+    }
+
+
+    static makePostRequest(url, data) {
+        return new Promise((resolve, reject) => {
+            const https = require('https');
+            const http = require('http');
+            const urlParsed = new URL(url);
+            const protocol = urlParsed.protocol === 'https:' ? https : http;
+
+            const postData = JSON.stringify(data);
+            const options = {
+                hostname: urlParsed.hostname,
+                port: urlParsed.port,
+                path: urlParsed.pathname + urlParsed.search,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(postData)
+                }
+            };
+
+            const req = protocol.request(options, (res) => {
+                let responseData = '';
+                res.on('data', (chunk) => responseData += chunk);
+                res.on('end', () => {
+                    try {
+                        resolve(JSON.parse(responseData));
+                    } catch (e) {
+                        resolve(null);
+                    }
+                });
+            });
+
+            req.on('error', reject);
+            req.write(postData);
+            req.end();
+        });
+    }
+
+    // Main mapping function with multi-API strategy
     static async getImdbFromKitsu(kitsuId) {
         try {
-            console.log(`Auto-mapping Kitsu ID ${kitsuId} to IMDb...`);
+            console.log(`🎌 Auto-mapping Kitsu ID ${kitsuId} to IMDb...`);
 
-            // Check for manual mapping first
+            // 1. Check manual mappings first
             if (this.MANUAL_MAPPINGS[kitsuId]) {
                 const imdbId = this.MANUAL_MAPPINGS[kitsuId];
-                console.log(`Using manual mapping: ${kitsuId} → ${imdbId}`);
+                console.log(`✅ Using manual mapping: ${kitsuId} → ${imdbId}`);
                 return imdbId;
             }
 
-            // Get anime metadata from Kitsu
+            // 2. Check database for existing mapping
+            const dbMapping = await this.getKitsuMappingFromDatabase(kitsuId);
+            if (dbMapping) {
+                console.log(`✅ Using database mapping: ${kitsuId} → ${dbMapping}`);
+                return dbMapping;
+            }
+
+            // 3. Get anime metadata from Kitsu
             const kitsuUrl = `https://kitsu.io/api/edge/anime/${kitsuId}`;
-            const kitsuResponse = await Utils.makeRequest(kitsuUrl);
+            const kitsuResponse = await this.makeRateLimitedRequest(kitsuUrl); // CHANGED: was makeCachedRequest
 
             if (!kitsuResponse?.data?.attributes) {
                 console.log(`No Kitsu metadata found for ID: ${kitsuId}`);
@@ -236,30 +711,59 @@ class AnimeService {
 
             console.log(`Found anime titles:`, allTitles);
 
-            // Try multiple search strategies
+            // 4. Try TMDB first
+            if (this.TMDB_API_KEY && this.TMDB_API_KEY !== 'your_tmdb_api_key_here') {
+                const kitsuData = {
+                    titles: allTitles,
+                    year: attrs.startDate ? new Date(attrs.startDate).getFullYear() : null,
+                    subtype: attrs.subtype,
+                    episodeCount: attrs.episodeCount
+                };
+
+                const tmdbResult = await this.searchTMDBForAnime(kitsuData);
+                if (tmdbResult?.imdbId) {
+                    console.log(`✅ Found via TMDB: ${kitsuId} → ${tmdbResult.imdbId}`);
+                    await this.saveKitsuMappingToDatabase(kitsuId, tmdbResult.imdbId, 'tmdb');
+                    return tmdbResult.imdbId;
+                }
+            }
+
+            // 5. Fallback to IMDb search logic
+            console.log(`⚠️ TMDB failed or unavailable, using IMDb fallback...`);
+
+            // IMDb SEARCH LOGIC
             for (const title of allTitles) {
-                const result = await this.searchImdbByTitle(title);
+                const result = await this.searchImdbByTitle(title, {
+                    subtype: attrs.subtype,
+                    year: attrs.startDate ? new Date(attrs.startDate).getFullYear() : null
+                });
+
                 if (result) {
-                    console.log(`Auto-mapped: ${kitsuId} → ${result} (${title})`);
+                    console.log(`✅ Found via IMDb fallback: ${kitsuId} → ${result}`);
+                    await this.saveKitsuMappingToDatabase(kitsuId, result, 'imdb_fallback');
                     return result;
                 }
 
-                // Try without season/part info - multiple cleaning strategies
+                // Your existing title cleaning logic
                 const cleaningPatterns = [
-                    /\s+season\s+\d+/gi,                    // " Season 2"
-                    /[:\-]\s*season\s*\d+/gi,              // ": Season 2" or "- Season 2"
-                    /[:\-]\s*(part|vol|volume)\s*\d+/gi,   // ": Part 1", "- Vol 2"
-                    /[:\-]\s*第\d+期/gi,                   // Japanese season notation
-                    /\s+\d+(st|nd|rd|th)\s+season/gi       // " 2nd Season"
+                    /\s+season\s+\d+/gi,
+                    /[:\-]\s*season\s*\d+/gi,
+                    /[:\-]\s*(part|vol|volume)\s*\d+/gi,
+                    /[:\-]\s*第\d+期/gi,
+                    /\s+\d+(st|nd|rd|th)\s+season/gi
                 ];
 
                 for (const pattern of cleaningPatterns) {
                     const cleanTitle = title.replace(pattern, '').trim();
                     if (cleanTitle !== title && cleanTitle.length > 0) {
-                        console.log(`Trying clean title: "${cleanTitle}" (removed: "${title.match(pattern)?.[0]}")`);
-                        const cleanResult = await this.searchImdbByTitle(cleanTitle);
+                        console.log(`Trying clean title: "${cleanTitle}"`);
+                        const cleanResult = await this.searchImdbByTitle(cleanTitle, {
+                            subtype: attrs.subtype,
+                            year: attrs.startDate ? new Date(attrs.startDate).getFullYear() : null
+                        });
                         if (cleanResult) {
-                            console.log(`Auto-mapped with clean title: ${kitsuId} → ${cleanResult} (${cleanTitle})`);
+                            console.log(`✅ Found via cleaned IMDb search: ${kitsuId} → ${cleanResult}`);
+                            await this.saveKitsuMappingToDatabase(kitsuId, cleanResult, 'imdb_fallback');
                             return cleanResult;
                         }
                     }
@@ -275,214 +779,6 @@ class AnimeService {
         }
     }
 
-    // Get season and episode info for Kitsu content
-    static async getKitsuSeasonInfo(kitsuId, episode) {
-        try {
-            const kitsuUrl = `https://kitsu.io/api/edge/anime/${kitsuId}`;
-            const kitsuResponse = await Utils.makeRequest(kitsuUrl);
-
-            if (!kitsuResponse?.data?.attributes) {
-                return { season: 1, episode: episode };
-            }
-
-            const attrs = kitsuResponse.data.attributes;
-            const title = attrs.canonicalTitle || attrs.titles?.en || '';
-
-            const season = Utils.extractSeasonFromTitle(title);
-            console.log(`Kitsu season info: "${title}" -> Season ${season}, Episode ${episode}`);
-
-            return { season, episode };
-
-        } catch (error) {
-            console.error(`Error getting Kitsu season info for ${kitsuId}:`, error);
-            return { season: 1, episode: episode };
-        }
-    }
-
-    static async searchImdbByTitle(title) {
-        try {
-            const letter = title.slice(0, 1).toLowerCase();
-            const query = encodeURIComponent(title.trim());
-            const imdbUrl = `https://v2.sg.media-imdb.com/suggestion/${letter}/${query}.json`;
-
-            console.log(`Searching IMDb for: "${title}"`);
-            const imdbResponse = await Utils.makeRequest(imdbUrl);
-
-            if (imdbResponse?.d?.length > 0) {
-                // Filter and prioritize candidates
-                const candidates = imdbResponse.d.filter(item =>
-                    item.q === 'TV series' || item.q === 'TV movie' || item.q === 'video'
-                );
-
-                if (candidates.length > 0) {
-                    console.log(`Found IMDb candidates:`, candidates.map(c => `${c.l} (${c.id}) [${c.q}]`));
-
-                    // Prioritize main series over episodes/specials
-                    const mainSeries = candidates.find(c => {
-                        const candidateTitle = c.l.toLowerCase();
-                        const searchTitle = title.toLowerCase();
-
-                        // PRIORITY 1: TV series that matches the search title
-                        if (c.q === 'TV series' && (
-                            candidateTitle === searchTitle ||
-                            candidateTitle.includes(searchTitle) ||
-                            searchTitle.includes(candidateTitle)
-                        )) return true;
-
-                        // PRIORITY 2: Any TV series (if no matching TV series found)
-                        if (c.q === 'TV series') return true;
-
-                        // PRIORITY 3: Exact match or very close match
-                        if (candidateTitle === searchTitle) return true;
-
-                        // Avoid episode-specific titles - be more specific about what constitutes episodes
-                        if (candidateTitle.includes('episode')) return false;
-                        if (candidateTitle.includes('special')) return false;
-                        if (candidateTitle.match(/:\s*(what|how|why|when|where|the\s+\w+\s+\w+)/i)) return false; // "What Do We Fear?" style
-
-                        // Check if candidate title starts with our search title
-                        return candidateTitle.startsWith(searchTitle) ||
-                            searchTitle.startsWith(candidateTitle);
-                    });
-
-                    let selectedCandidate = mainSeries || candidates[0];
-
-                    // ONLY try to find main series if we found episode-specific results AND no main series
-                    // Be more specific about what constitutes "episode-specific"
-                    const isEpisodeSpecific = candidates[0].l.includes(':') &&
-                        (candidates[0].l.toLowerCase().includes('episode') ||
-                            candidates[0].l.match(/:\s*(what|the|part|chapter|\d+)/i) ||
-                            candidates[0].q === 'video'); // videos are often episodes
-
-                    if (!mainSeries && candidates.length === 1 && isEpisodeSpecific) {
-                        console.log(`Only found episode-specific result, attempting to find main series...`);
-                        const episodeId = candidates[0].id;
-                        const mainSeriesId = await this.findMainSeriesFromEpisode(episodeId);
-                        if (mainSeriesId) {
-                            console.log(`Found main series ID: ${mainSeriesId} from episode ${episodeId}`);
-                            return mainSeriesId;
-                        }
-                        console.log(`Could not find main series, using episode result as fallback`);
-                    }
-
-                    console.log(`Selected candidate: ${selectedCandidate.l} (${selectedCandidate.id}) [${selectedCandidate.q}]`);
-                    return selectedCandidate.id;
-                }
-            }
-
-            console.log(`No IMDb results for: "${title}"`);
-            return null;
-
-        } catch (error) {
-            console.error(`Error searching IMDb for "${title}":`, error);
-            return null;
-        }
-    }
-
-    static async findMainSeriesFromEpisode(episodeId) {
-        try {
-            // Try to extract series ID by making a request to the episode page
-            // For Cyberpunk: Edgerunners, tt25447788 (episode) should relate to tt12590266 (series)
-
-            const episodeNum = parseInt(episodeId.replace('tt', ''));
-            console.log(`Episode number: ${episodeNum}`);
-
-            // Try broader ID patterns - series IDs can be much different from episode IDs
-            const candidateIds = [
-                // Close range
-                `tt${episodeNum - 1}`, `tt${episodeNum - 2}`, `tt${episodeNum - 10}`,
-                // Medium range  
-                `tt${episodeNum - 100}`, `tt${episodeNum - 1000}`, `tt${episodeNum - 10000}`,
-                // Far range (like Cyberpunk case: 25447788 -> 12590266)
-                `tt${episodeNum - 1000000}`, `tt${episodeNum - 5000000}`, `tt${episodeNum - 10000000}`,
-                `tt${episodeNum - 12000000}`, `tt${episodeNum - 12857522}`, // 25447788 - 12590266 = 12857522
-                // Pattern-based
-                `tt${Math.floor(episodeNum / 10) * 10}`,
-                `tt${Math.floor(episodeNum / 100) * 100}`,
-                `tt${Math.floor(episodeNum / 1000) * 1000}`,
-                // Try some common series ID patterns
-                `tt${Math.floor(episodeNum / 2)}`, // Half the episode ID
-                `tt${episodeNum.toString().substring(0, 8)}`, // First 8 digits
-                `tt${episodeNum.toString().substring(0, 7)}`, // First 7 digits
-                `tt${episodeNum.toString().substring(0, 6)}`, // First 6 digits
-                // Specific pattern for this range
-                `tt125${episodeNum.toString().substring(3, 8)}`, // Try 125xxxxx pattern
-                `tt126${episodeNum.toString().substring(3, 8)}`, // Try 126xxxxx pattern  
-                `tt120${episodeNum.toString().substring(3, 8)}`, // Try 120xxxxx pattern
-            ];
-
-            console.log(`Trying ${candidateIds.length} candidate series IDs for episode ${episodeId}`);
-            console.log(`Sample candidates:`, candidateIds.slice(0, 10));
-
-            // Test if any of these IDs exist in our ratings database
-            for (const candidateId of candidateIds) {
-                try {
-                    const url = `${process.env.RATINGS_API_URL || 'http://localhost:3001'}/api/rating/${candidateId}`;
-                    const data = await Utils.makeRequest(url);
-                    if (data?.rating && !data.error) {
-                        console.log(`🎯 Found valid series ID in database: ${candidateId} (rating: ${data.rating})`);
-                        return candidateId;
-                    }
-                } catch (e) {
-                    // Continue trying other candidates
-                }
-
-                // Add a small delay to avoid overwhelming the API
-                if (candidateIds.indexOf(candidateId) % 5 === 0) {
-                    await new Promise(resolve => setTimeout(resolve, 10));
-                }
-            }
-
-            console.log(`No main series ID found for episode ${episodeId}`);
-            return null;
-
-        } catch (error) {
-            console.error(`Error finding main series from episode ${episodeId}:`, error);
-            return null;
-        }
-    }
-
-    // NEW: Get series title from IMDb ID
-    static async getSeriesTitleFromImdb(imdbId) {
-        try {
-            const url = `https://v2.sg.media-imdb.com/suggestion/t/${imdbId}.json`;
-            const response = await Utils.makeRequest(url);
-
-            if (response?.d?.length > 0) {
-                return { title: response.d[0].l };
-            }
-            return null;
-        } catch (error) {
-            console.error(`Error getting series title for ${imdbId}:`, error);
-            return null;
-        }
-    }
-
-    // NEW: Hardcoded season mappings for problematic series
-    static getHardcodedSeasonMapping(imdbId, season, episode) {
-        const SEASON_MAPPINGS = {
-            'tt0388629': { // One Piece - exact episode counts from TVDB
-                episodesPerSeason: [0, 8, 22, 17, 13, 9, 22, 39, 13, 52, 31, 99, 56, 100, 35, 62, 49, 118, 33, 98, 14, 194, 48],
-            }
-        };
-
-        const mapping = SEASON_MAPPINGS[imdbId];
-        if (!mapping) return null;
-
-        // Calculate absolute episode number
-        let absoluteEpisode = 0;
-        for (let s = 1; s < season; s++) {
-            if (mapping.episodesPerSeason[s]) {
-                absoluteEpisode += mapping.episodesPerSeason[s];
-            }
-        }
-        absoluteEpisode += episode;
-
-        console.log(`Hardcoded mapping for ${imdbId}: S${season}E${episode} → S1E${absoluteEpisode}`);
-        return { season: 1, episode: absoluteEpisode };
-    }
-
-    // NEW: Find episode by title using IMDb suggestions
     static async findEpisodeByTitle(seriesImdbId, season, episode) {
         try {
             console.log(`Trying episode title matching via IMDb suggestions for S${season}E${episode}...`);
@@ -519,6 +815,673 @@ class AnimeService {
             console.error(`Error finding episode by title:`, error);
             return null;
         }
+    }
+
+    static async getSeriesTitleFromImdb(imdbId) {
+        try {
+            const url = `https://v2.sg.media-imdb.com/suggestion/t/${imdbId}.json`;
+            const response = await this.makeCachedRequest(url);
+
+            if (response?.d?.length > 0) {
+                return { title: response.d[0].l };
+            }
+            return null;
+        } catch (error) {
+            console.error(`Error getting series title for ${imdbId}:`, error);
+            return null;
+        }
+    }
+
+    static async getTMDBExternalIds(mediaType, tmdbId) {
+        try {
+            const params = new URLSearchParams({
+                api_key: this.TMDB_API_KEY
+            });
+            const externalUrl = `${this.TMDB_BASE_URL}/${mediaType}/${tmdbId}/external_ids?${params.toString()}`;
+            const externalData = await this.makeRateLimitedRequest(externalUrl);
+
+            return externalData?.imdb_id || null;
+        } catch (error) {
+            console.error(`Error getting external IDs for TMDB ${mediaType}/${tmdbId}:`, error);
+            return null;
+        }
+    }
+
+    // Get enhanced metadata from Kitsu
+    static async getKitsuMetadata(kitsuId) {
+        const kitsuUrl = `https://kitsu.io/api/edge/anime/${kitsuId}`;
+        const kitsuResponse = await this.makeCachedRequest(kitsuUrl);
+
+        if (!kitsuResponse?.data?.attributes) {
+            return null;
+        }
+
+        const attrs = kitsuResponse.data.attributes;
+        return {
+            titles: [
+                attrs.canonicalTitle,
+                attrs.titles?.en,
+                attrs.titles?.en_jp,
+                attrs.titles?.en_us,
+                attrs.titles?.ja_jp
+            ].filter(Boolean),
+            year: attrs.startDate ? new Date(attrs.startDate).getFullYear() : null,
+            subtype: attrs.subtype, // 'TV', 'Movie', 'OVA', 'ONA'
+            episodeCount: attrs.episodeCount,
+            status: attrs.status,
+            synopsis: attrs.synopsis
+        };
+    }
+
+    // TMDB search with anime-specific logic
+    static async searchTMDBForAnime(kitsuData) {
+        if (!this.TMDB_API_KEY || this.TMDB_API_KEY === 'your_tmdb_api_key_here') {
+            console.warn(`⚠️ TMDB API key not configured, skipping TMDB search`);
+            return null;
+        }
+
+        // SMART TITLE ORDERING: Try shorter, more common titles first
+        const prioritizedTitles = this.prioritizeTitles(kitsuData.titles);
+
+        for (const title of prioritizedTitles) {
+            try {
+                // STRATEGY 1: Try original title first
+                console.log(`🎯 Strategy 1: Trying original title: "${title}"`);
+                let result = await this.searchTMDBTitle(title, kitsuData);
+                if (result) {
+                    console.log(`✅ Found via original title: ${result.imdbId}`);
+                    return result;
+                }
+
+                // STRATEGY 2: ALWAYS try cleaned title (remove season/sequel indicators)
+                const cleanedTitle = this.removeSeasonFromTitle(title);
+                if (cleanedTitle !== title && cleanedTitle.length > 2) {
+                    console.log(`🧹 Strategy 2: Trying cleaned title: "${cleanedTitle}" (removed season from "${title}")`);
+                    result = await this.searchTMDBTitle(cleanedTitle, kitsuData, true);
+                    if (result) {
+                        console.log(`✅ Found via cleaned title: ${result.imdbId}`);
+                        return result;
+                    }
+                } else {
+                    console.log(`⏭️ Cleaned title same as original or too short, skipping: "${cleanedTitle}"`);
+                }
+
+            } catch (error) {
+                console.error(`Error searching TMDB for "${title}":`, error);
+                continue;
+            }
+        }
+
+        console.log(`❌ No TMDB results found for any title variant`);
+        return null;
+    }
+
+    // NEW: Helper method to search a single title
+    static async searchTMDBTitle(title, kitsuData, isCleaned = false) {
+        const params = new URLSearchParams({
+            api_key: this.TMDB_API_KEY,
+            query: title
+        });
+
+        if (kitsuData.year && !isCleaned) {
+            // Only add year for original titles, not cleaned ones
+            params.append('year', kitsuData.year);
+        }
+
+        const searchUrl = `${this.TMDB_BASE_URL}/search/multi?${params.toString()}`;
+        const yearNote = kitsuData.year && !isCleaned ? ` (${kitsuData.year})` : '';
+        const cleanedNote = isCleaned ? ' [CLEANED]' : '';
+        console.log(`🔍 Searching TMDB for: "${title}"${yearNote}${cleanedNote}`);
+
+        const searchResults = await this.makeRateLimitedRequest(searchUrl);
+
+        if (searchResults?.results?.length > 0) {
+            console.log(`📊 Found ${searchResults.results.length} TMDB candidates, scoring...`);
+            const scoredResults = await this.scoreTMDBCandidates(searchResults.results, kitsuData, title, isCleaned);
+
+            // Show top 3 candidates with scores
+            const topCandidates = scoredResults.slice(0, 3);
+            console.log(`🏆 Top candidates:`, topCandidates.map(c =>
+                `${c.title || c.name} (${c.id}) [${c.media_type}] Score: ${c.score.toFixed(1)}`
+            ));
+
+            for (const candidate of scoredResults) {
+                // LOWERED thresholds to ensure we try cleaned titles
+                const minScore = isCleaned ? 5 : 10; // Much lower thresholds
+                console.log(`🎯 Checking candidate "${candidate.title || candidate.name}" - Score: ${candidate.score.toFixed(1)} (min: ${minScore})`);
+
+                if (candidate.score >= minScore) {
+                    const imdbId = await this.getTMDBExternalIds(candidate.media_type, candidate.id);
+                    if (imdbId) {
+                        const strategyNote = isCleaned ? ' (via cleaned title)' : ' (via original title)';
+                        console.log(`🎯 TMDB match: "${title}"${strategyNote} → ${candidate.media_type}/${candidate.id} → ${imdbId} (Score: ${candidate.score.toFixed(1)})`);
+                        return { imdbId, tmdbId: candidate.id, mediaType: candidate.media_type };
+                    } else {
+                        console.log(`❌ No IMDb ID found for TMDB ${candidate.media_type}/${candidate.id}`);
+                    }
+                } else {
+                    console.log(`⏭️ Score too low (${candidate.score.toFixed(1)} < ${minScore}), trying next candidate`);
+                }
+            }
+        } else {
+            console.log(`❌ No TMDB results found for: "${title}"`);
+        }
+
+        return null;
+    }
+
+    // Remove season indicators from titles for better matching
+    static removeSeasonFromTitle(title) {
+        const seasonPatterns = [
+            /\s+\d+$/, // "Title 2", "Title 3" ← REMOVES THE PROBLEMATIC NUMBERS
+            /\s+season\s+\d+/gi,
+            /[:\-]\s*season\s*\d+/gi,
+            /[:\-]\s*(part|vol|volume)\s*\d+/gi,
+            /[:\-]\s*第\d+期/gi,
+            /\s+\d+(st|nd|rd|th)\s+season/gi,
+            /[:\-]\s*(book|chapter)\s*\d+/gi,
+            /\s+(II|III|IV|V|VI|VII|VIII|IX|X)$/i // Roman numerals
+        ];
+
+        let cleanedTitle = title;
+
+        for (const pattern of seasonPatterns) {
+            const newTitle = cleanedTitle.replace(pattern, '').trim();
+            if (newTitle.length > 0 && newTitle !== cleanedTitle) {
+                cleanedTitle = newTitle;
+                break; // Only apply first matching pattern
+            }
+        }
+
+        return cleanedTitle;
+    }
+
+    static prioritizeTitles(titles) {
+        if (!titles || titles.length === 0) return [];
+
+        // Create title objects with priority scores
+        const scoredTitles = titles.map(title => {
+            let score = 0;
+            const titleLower = title.toLowerCase();
+
+            // PREFER shorter titles (they're often more universal)
+            score += Math.max(0, 50 - title.length); // Shorter = higher score
+
+            // PREFER English titles
+            if (/^[a-zA-Z0-9\s\-:!?.']+$/.test(title)) {
+                score += 20;
+            }
+
+            // PREFER common/simplified names
+            const commonPatterns = [
+                /^[a-zA-Z\s]+$/, // Simple English words only
+                /chan$/i,        // "Shin Chan" vs "Crayon Shin-chan"
+                /ball$/i,        // "Dragon Ball" vs "Dragon Ball Z"
+            ];
+
+            for (const pattern of commonPatterns) {
+                if (pattern.test(title)) {
+                    score += 15;
+                    break;
+                }
+            }
+
+            // PENALIZE overly descriptive titles
+            if (titleLower.includes('crayon') || titleLower.includes('detective') || titleLower.includes('adventures')) {
+                score -= 10;
+            }
+
+            // SPECIAL CASES for known problematic titles
+            if (titleLower === 'shin chan') score += 30; // Boost "Shin Chan"
+            if (titleLower.includes('crayon shin-chan')) score -= 20; // Demote full title
+
+            return { title, score };
+        });
+
+        // Sort by score (highest first) and return just the titles
+        const prioritized = scoredTitles
+            .sort((a, b) => b.score - a.score)
+            .map(item => item.title);
+
+        console.log(`📊 Title priority order:`, prioritized.map((title, i) =>
+            `${i + 1}. "${title}" (${scoredTitles.find(t => t.title === title)?.score})`
+        ));
+
+        return prioritized;
+    }
+
+
+    // Helper method to search a single title
+    static async searchTMDBTitle(title, kitsuData, isCleaned = false) {
+        const params = new URLSearchParams({
+            api_key: this.TMDB_API_KEY,
+            query: title
+        });
+
+        if (kitsuData.year && !isCleaned) {
+            // Only add year for original titles, not cleaned ones
+            // (cleaned titles might match earlier seasons with different years)
+            params.append('year', kitsuData.year);
+        }
+
+        const searchUrl = `${this.TMDB_BASE_URL}/search/multi?${params.toString()}`;
+        console.log(`🔍 Searching TMDB for: "${title}"${kitsuData.year && !isCleaned ? ` (${kitsuData.year})` : ''}`);
+
+        const searchResults = await this.makeRateLimitedRequest(searchUrl);
+
+        if (searchResults?.results?.length > 0) {
+            const scoredResults = await this.scoreTMDBCandidates(searchResults.results, kitsuData, title, isCleaned);
+
+            for (const candidate of scoredResults) {
+                const minScore = isCleaned ? 10 : 15; // Lower threshold for cleaned titles
+                if (candidate.score >= minScore) {
+                    const imdbId = await this.getTMDBExternalIds(candidate.media_type, candidate.id);
+                    if (imdbId) {
+                        const cleanedNote = isCleaned ? ' (cleaned title)' : '';
+                        console.log(`🎯 TMDB match: "${title}"${cleanedNote} → ${candidate.media_type}/${candidate.id} → ${imdbId} (Score: ${candidate.score})`);
+                        return { imdbId, tmdbId: candidate.id, mediaType: candidate.media_type };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // Remove season indicators from titles for better matching
+    static removeSeasonFromTitle(title) {
+        const seasonPatterns = [
+            /\s+\d+$/, // "Title 2", "Title 3" ← REMOVES THE PROBLEMATIC NUMBERS
+            /\s+season\s+\d+/gi,
+            /[:\-]\s*season\s*\d+/gi,
+            /[:\-]\s*(part|vol|volume)\s*\d+/gi,
+            /[:\-]\s*第\d+期/gi,
+            /\s+\d+(st|nd|rd|th)\s+season/gi,
+            /[:\-]\s*(book|chapter)\s*\d+/gi,
+            /\s+(II|III|IV|V|VI|VII|VIII|IX|X)$/i // Roman numerals
+        ];
+
+        let cleanedTitle = title;
+
+        for (const pattern of seasonPatterns) {
+            const newTitle = cleanedTitle.replace(pattern, '').trim();
+            if (newTitle.length > 0 && newTitle !== cleanedTitle) {
+                cleanedTitle = newTitle;
+                break; // Only apply first matching pattern
+            }
+        }
+
+        return cleanedTitle;
+    }
+
+
+    // Score TMDB candidates with anime-aware logic + episode count validation
+    static async scoreTMDBCandidates(results, kitsuData, searchTitle, isCleaned = false) {
+        const scoredResults = await Promise.all(results.map(async item => {
+            let score = 0;
+            const title = item.title || item.name || '';
+            const titleLower = title.toLowerCase();
+            const searchLower = searchTitle.toLowerCase();
+
+            // Base score
+            score += 1;
+
+            // STRICT: For TV anime, REJECT movies unless it's a very specific match
+            if (kitsuData.subtype === 'TV' && item.media_type === 'movie') {
+                // Only allow movies if they have extremely high title similarity AND are animated
+                const hasAnimation = item.genre_ids && item.genre_ids.includes(16);
+                const isExactMatch = titleLower === searchLower;
+
+                if (!isExactMatch || !hasAnimation) {
+                    console.log(`🚫 REJECTING movie "${title}" for TV anime (not exact match or not animated)`);
+                    return { ...item, score: -999 }; // Effectively reject
+                } else {
+                    console.log(`⚠️ Allowing movie "${title}" (exact animated match)`);
+                    score -= 15; // Still penalize heavily
+                }
+            }
+
+            // TV series gets MAJOR bonus for anime
+            if (kitsuData.subtype === 'TV') {
+                if (item.media_type === 'tv') {
+                    score += 30;
+                    console.log(`📺 TV series bonus: +30 for "${title}"`);
+                }
+            }
+
+            // Title matching (adjusted for cleaned titles)
+            if (titleLower === searchLower) {
+                score += 25; // Exact match
+            } else if (titleLower.includes(searchLower) || searchLower.includes(titleLower)) {
+                score += 15; // Partial match
+            } else if (titleLower.startsWith(searchLower) || searchLower.startsWith(titleLower)) {
+                score += 10; // Prefix match
+            }
+
+            // Year matching (more lenient for cleaned titles)
+            if (kitsuData.year && (item.release_date || item.first_air_date)) {
+                const tmdbYear = new Date(item.release_date || item.first_air_date).getFullYear();
+                const yearDiff = Math.abs(tmdbYear - kitsuData.year);
+
+                if (isCleaned) {
+                    // More lenient year matching for cleaned titles (base series might be older)
+                    if (yearDiff <= 2) score += 15;
+                    else if (yearDiff <= 5) score += 10;
+                    else if (yearDiff <= 10) score += 5;
+                } else {
+                    // Strict year matching for original titles
+                    if (yearDiff === 0) score += 20;
+                    else if (yearDiff === 1) score += 15;
+                    else if (yearDiff <= 2) score += 10;
+                    else score -= 5;
+                }
+            }
+
+            // Animation genre bonus (genre_ids: 16 = Animation)
+            if (item.genre_ids && item.genre_ids.includes(16)) {
+                score += 10;
+            }
+
+            // Origin country bonus for anime (Japan)
+            if (item.origin_country && item.origin_country.includes('JP')) {
+                score += 8;
+            }
+
+            // Original language bonus (Japanese)
+            if (item.original_language === 'ja') {
+                score += 8;
+            }
+
+            // Episode count validation for TV series (existing logic)
+            if (kitsuData.subtype === 'TV' && item.media_type === 'tv' && kitsuData.episodeCount) {
+                try {
+                    const detailsUrl = `${this.TMDB_BASE_URL}/tv/${item.id}?api_key=${this.TMDB_API_KEY}`;
+                    const details = await this.makeRateLimitedRequest(detailsUrl);
+
+                    if (details?.number_of_episodes) {
+                        const epDiff = Math.abs(kitsuData.episodeCount - details.number_of_episodes);
+                        if (epDiff <= 2) {
+                            score += 8;
+                            console.log(`📊 Episode count bonus: Kitsu ${kitsuData.episodeCount} ≈ TMDB ${details.number_of_episodes} (+8)`);
+                        } else if (epDiff <= 5) {
+                            score += 4;
+                            console.log(`📊 Episode count bonus: Kitsu ${kitsuData.episodeCount} ≈ TMDB ${details.number_of_episodes} (+4)`);
+                        } else if (epDiff > 20) {
+                            score -= 5;
+                            console.log(`📊 Episode count penalty: Kitsu ${kitsuData.episodeCount} vs TMDB ${details.number_of_episodes} (-5)`);
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`Could not fetch episode count for TMDB TV/${item.id}:`, error.message);
+                }
+            }
+
+            // Popularity threshold
+            if (item.popularity > 1) {
+                score += Math.min(item.popularity / 10, 5);
+            }
+
+            // Exact base title matching with normalization
+            const normalizeTitle = (title) => {
+                return title
+                    .replace(/boku no hero academia/gi, 'my hero academia')
+                    .replace(/shingeki no kyojin/gi, 'attack on titan')
+                    .replace(/kimetsu no yaiba/gi, 'demon slayer')
+                    .replace(/arcane season/gi, 'arcane')
+                    // Add more as needed
+                    .trim();
+            };
+
+            const baseSearchTitle = normalizeTitle(searchLower.replace(/\s*(season\s*)?\d+\s*$/, ''));
+            const baseTmdbTitle = normalizeTitle(titleLower.replace(/\s*(season\s*)?\d+\s*$/, ''));
+
+            if (baseSearchTitle === baseTmdbTitle && baseSearchTitle.length > 3) {
+                score += 20;
+                console.log(`🎯 Exact base title match bonus: +20 for "${title}" (normalized match)`);
+            }
+
+            return { ...item, score };
+        }));
+
+        return scoredResults.sort((a, b) => b.score - a.score);
+    }
+
+
+    // Get IMDb ID from TMDB external IDs
+    static async getTMDBExternalIds(mediaType, tmdbId) {
+        try {
+            const params = new URLSearchParams({
+                api_key: this.TMDB_API_KEY
+            });
+            const externalUrl = `${this.TMDB_BASE_URL}/${mediaType}/${tmdbId}/external_ids?${params.toString()}`;
+            const externalData = await this.makeCachedRequest(externalUrl);
+
+            return externalData?.imdb_id || null;
+        } catch (error) {
+            console.error(`Error getting external IDs for TMDB ${mediaType}/${tmdbId}:`, error);
+            return null;
+        }
+    }
+
+    // Generate cleaned title variants
+    static generateCleanedTitles(title) {
+        const cleaningPatterns = [
+            /\s+season\s+\d+$/gi,
+            /[:\-]\s*season\s*\d+/gi,
+            /[:\-]\s*(part|vol|volume)\s*\d+/gi,
+            /[:\-]\s*第\d+期/gi,
+            /\s+\d+(st|nd|rd|th)\s+season/gi,
+            /[:\-]\s*(book|chapter)\s*\d+/gi
+        ];
+
+        const variants = [title];
+
+        for (const pattern of cleaningPatterns) {
+            const cleaned = title.replace(pattern, '').trim();
+            if (cleaned !== title && cleaned.length > 0) {
+                variants.push(cleaned);
+            }
+        }
+
+        return [...new Set(variants)]; // Remove duplicates
+    }
+
+    // Fallback to IMDb search (legacy method, use sparingly)
+    static async searchIMDbFallback(kitsuData) {
+        console.warn(`⚠️ Using IMDb fallback search - this should be rare!`);
+
+        for (const title of kitsuData.titles) {
+            try {
+                const result = await this.searchImdbByTitle(title, {
+                    subtype: kitsuData.subtype,
+                    year: kitsuData.year
+                });
+                if (result) {
+                    return result;
+                }
+            } catch (error) {
+                console.error(`IMDb fallback failed for "${title}":`, error);
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    // Legacy IMDb search method (keep for fallback)
+    static async searchImdbByTitle(title, context = {}) {
+        try {
+            const letter = title.slice(0, 1).toLowerCase();
+            const query = encodeURIComponent(title.trim());
+            const imdbUrl = `https://v2.sg.media-imdb.com/suggestion/${letter}/${query}.json`;
+
+            console.log(`🔍 [FALLBACK] Searching IMDb for: "${title}"`);
+            const imdbResponse = await this.makeCachedRequest(imdbUrl);
+
+            if (imdbResponse?.d?.length > 0) {
+                let candidates = imdbResponse.d.map(item => {
+                    let score = 1;
+
+                    // Year matching
+                    if (context.year && item.y) {
+                        const yearDiff = Math.abs(item.y - context.year);
+                        if (yearDiff === 0) score += 20;
+                        else if (yearDiff === 1) score += 15;
+                        else if (yearDiff <= 2) score += 10;
+                        else score -= 5;
+                    }
+
+                    // Content type matching
+                    if (context.subtype === 'TV' && item.q === 'TV series') {
+                        score += 15;
+                    } else if (context.subtype === 'Movie' && (item.q === 'movie' || item.q === 'TV movie')) {
+                        score += 15;
+                    }
+
+                    // Title matching
+                    const candidateTitle = item.l.toLowerCase();
+                    const searchTitle = title.toLowerCase();
+
+                    if (candidateTitle === searchTitle) {
+                        score += 25;
+                    } else if (candidateTitle.includes(searchTitle) || searchTitle.includes(candidateTitle)) {
+                        score += 15;
+                    }
+
+                    // PENALTY for specials/episodes
+                    if (candidateTitle.includes('special')) score -= 10;
+                    if (candidateTitle.includes('episode')) score -= 10;
+                    if (candidateTitle.includes('ova')) score -= 5;
+                    if (candidateTitle.includes('movie') && context.subtype === 'TV') score -= 8;
+
+                    // BONUS for main series indicators
+                    if (item.q === 'TV series' && context.subtype === 'TV') score += 5;
+                    if (candidateTitle === searchTitle && item.q === 'TV series') score += 10;
+
+                    return { ...item, score };
+                });
+
+                candidates.sort((a, b) => b.score - a.score);
+
+                console.log(`🏆 IMDb candidate scores:`, candidates.slice(0, 3).map(c =>
+                    `${c.l} (${c.id}) [${c.q}] Score: ${c.score}`
+                ));
+
+                if (candidates.length > 0 && candidates[0].score >= 10) {
+                    console.log(`✅ Selected IMDb candidate: ${candidates[0].l} (${candidates[0].id}) [Score: ${candidates[0].score}]`);
+                    return candidates[0].id;
+                }
+            }
+
+            return null;
+        } catch (error) {
+            console.error(`Error in IMDb fallback search for "${title}":`, error);
+            return null;
+        }
+    }
+
+    // Season handling
+    static async getKitsuSeasonInfo(kitsuId, episode) {
+        try {
+            const kitsuUrl = `https://kitsu.io/api/edge/anime/${kitsuId}`;
+            const kitsuResponse = await this.makeCachedRequest(kitsuUrl);
+
+            if (!kitsuResponse?.data?.attributes) {
+                return { season: 1, episode: episode };
+            }
+
+            const attrs = kitsuResponse.data.attributes;
+            const title = attrs.canonicalTitle || attrs.titles?.en || '';
+
+            // ENHANCED: Try multiple title variants for season extraction
+            const titleVariants = [
+                attrs.canonicalTitle,
+                attrs.titles?.en,
+                attrs.titles?.en_jp,
+                attrs.titles?.ja_jp
+            ].filter(Boolean);
+
+            let detectedSeason = 1;
+
+            // Try to extract season from any title variant
+            for (const titleVariant of titleVariants) {
+                const normalizedTitle = Utils.normalizeAnimeTitle(titleVariant);
+                const extractedSeason = Utils.extractSeasonFromTitle(normalizedTitle);
+
+                if (extractedSeason > 1) {
+                    detectedSeason = extractedSeason;
+                    console.log(`🎯 Season detected from "${titleVariant}": Season ${detectedSeason}`);
+                    break; // Use first non-1 season found
+                }
+            }
+
+            console.log(`📺 Final Kitsu season info: "${title}" -> Season ${detectedSeason}, Episode ${episode}`);
+            return { season: detectedSeason, episode };
+
+        } catch (error) {
+            console.error(`Error getting Kitsu season info for ${kitsuId}:`, error);
+            return { season: 1, episode: episode };
+        }
+    }
+
+
+    static getHardcodedSeasonMapping(imdbId, season, episode) {
+
+        const SEASON_MAPPINGS = {
+            'tt0388629': {
+                episodesPerSeason: [0, 8, 22, 17, 13, 9, 22, 39, 13, 52, 31, 99, 56, 100, 35, 62, 49, 118, 33, 98, 14, 194, 48],
+            }
+        };
+
+        const mapping = SEASON_MAPPINGS[imdbId];
+        if (!mapping) return null;
+
+        let absoluteEpisode = 0;
+        for (let s = 1; s < season; s++) {
+            if (mapping.episodesPerSeason[s]) {
+                absoluteEpisode += mapping.episodesPerSeason[s];
+            }
+        }
+        absoluteEpisode += episode;
+
+        console.log(`Hardcoded mapping for ${imdbId}: S${season}E${episode} → S1E${absoluteEpisode}`);
+        return { season: 1, episode: absoluteEpisode };
+    }
+
+    // Helper for episode mapping
+    static async processKitsuEpisodeMapping(parsedId) {
+        console.log(`🎌 Processing Kitsu episode mapping for ${parsedId.kitsuId}, episode ${parsedId.episode}`);
+
+        // Check for enhanced manual mapping first
+        if (this.MANUAL_MAPPINGS[parsedId.kitsuId]) {
+            const mapping = this.MANUAL_MAPPINGS[parsedId.kitsuId];
+
+            // Validate episode range
+            if (mapping.maxEpisodes && parsedId.episode > mapping.maxEpisodes) {
+                console.warn(`⚠️ Episode ${parsedId.episode} exceeds max episodes (${mapping.maxEpisodes}) for ${mapping.name}`);
+            }
+
+            // Apply episode offset
+            const adjustedEpisode = parsedId.episode + mapping.episodeOffset;
+
+            console.log(`📋 Enhanced manual mapping found: ${mapping.name}`);
+            console.log(`   Original: Episode ${parsedId.episode}`);
+            console.log(`   Mapped to: Season ${mapping.season}, Episode ${adjustedEpisode}`);
+            console.log(`   IMDb ID: ${mapping.imdbId}`);
+
+            // Update parsedId with mapped values
+            parsedId.season = mapping.season;
+            parsedId.episode = adjustedEpisode;
+
+            return mapping.imdbId;
+        }
+
+        // Fall back to existing auto-mapping logic
+        const seasonInfo = await this.getKitsuSeasonInfo(parsedId.kitsuId, parsedId.episode);
+        parsedId.season = seasonInfo.season;
+        parsedId.episode = seasonInfo.episode;
+
+        return await this.getImdbFromKitsu(parsedId.kitsuId);
     }
 }
 
@@ -627,7 +1590,7 @@ class StreamService {
     static formatRatingDisplay(ratingData, config, type = 'episode') {
         const { rating, votes } = ratingData;
         const { showVotes, format, streamName, voteFormat, ratingFormat } = config;
-       
+
         // Handle "not available" case
         if (type === 'not_available') {
             return {
@@ -635,12 +1598,12 @@ class StreamService {
                 description: '❌  Episode rating not available\n⭐  IMDb Series Rating:  Not Available'
             };
         }
-       
+
         // Format votes and rating according to config
         const formattedVotes = Utils.formatVotes(votes, voteFormat);
         const formattedRating = Utils.formatRating(rating, ratingFormat);
         const votesText = showVotes && formattedVotes ? ` (${formattedVotes} votes)` : '';
-       
+
         // Handle series fallback case
         if (type === 'series_fallback') {
             return {
@@ -648,18 +1611,18 @@ class StreamService {
                 description: `❌  Episode rating not available\n⭐  IMDb Series Rating:  ${formattedRating} ${votesText}`
             };
         }
-       
+
         if (format === 'singleline') {
             return {
                 name: streamName,
                 description: `⭐  IMDb:  ${formattedRating} ${votesText}`
             };
         }
-       
+
         // ── MULTILINE (episode)
         const ratingLine = `⭐  IMDb:  ${formattedRating}`;
         const lines = [
-            '─'.repeat(ratingLine.length),          
+            '─'.repeat(ratingLine.length),
             ratingLine
         ];
         if (showVotes && formattedVotes) {
@@ -668,7 +1631,7 @@ class StreamService {
             lines.push(`${indent}(${formattedVotes} votes)`);
         }
         lines.push('─'.repeat(ratingLine.length));
-       
+
         return {
             name: streamName,
             description: lines.join('\n')
@@ -817,7 +1780,7 @@ class StreamService {
         return [stream];
     }
 
-    // UPDATED: Enhanced getStreams method with anime support
+    // getStreams method with anime support
     static async getStreams(type, id, config) {
         console.log(`🎬 StreamService.getStreams called with type="${type}", id="${id}"`);
 
@@ -837,53 +1800,25 @@ class StreamService {
         try {
             let imdbId = null;
 
-            // Handle Kitsu content - NEW
+            // Handle Kitsu content
             if (parsedId.platform === 'kitsu') {
                 console.log(`🎌 Processing Kitsu content: ${parsedId.kitsuId}`);
-                imdbId = await AnimeService.getImdbFromKitsu(parsedId.kitsuId);
+
+                if (parsedId.episode) {
+                    // Use enhanced episode mapping - this handles EVERYTHING
+                    imdbId = await AnimeService.processKitsuEpisodeMapping(parsedId);
+                    // ✅ parsedId.season and parsedId.episode are now correctly set
+                    console.log(`✅ Enhanced mapping complete: S${parsedId.season}E${parsedId.episode}`);
+                } else {
+                    imdbId = await AnimeService.getImdbFromKitsu(parsedId.kitsuId);
+                }
+
                 if (!imdbId) {
                     console.log('❌ Could not map Kitsu ID to IMDb');
                     return this.createNoRatingStream(config, parsedId.originalId);
                 }
                 console.log(`✅ Mapped to IMDb ID: ${imdbId}`);
 
-                // Get proper season info for Kitsu content
-                if (parsedId.episode) {
-                    // For manual mappings, we can extract season info without re-triggering search
-                    if (AnimeService.MANUAL_MAPPINGS && AnimeService.MANUAL_MAPPINGS[parsedId.kitsuId]) {
-                        console.log(`📋 Using manual mapping - extracting season from known title`);
-                        
-                        // Enhanced season mapping for both Avatar and Korra
-                        const KITSU_SEASON_MAPPINGS = {
-                            // Avatar: The Last Airbender
-                            '7936': { season: 1, name: 'Book 1: Air' },      // Avatar Book 1
-                            '7937': { season: 2, name: 'Book 2: Earth' },    // Avatar Book 2  
-                            '7926': { season: 3, name: 'Book 3: Fire' },     // Avatar Book 3
-                            
-                            // Legend of Korra
-                            '7939': { season: 1, name: 'Book 1: Air' },      // Korra Book 1
-                            '7938': { season: 2, name: 'Book 2: Spirits' },  // Korra Book 2
-                            '8077': { season: 3, name: 'Book 3: Change' },   // Korra Book 3 ← THIS IS THE FIX
-                            '8706': { season: 4, name: 'Book 4: Balance' }   // Korra Book 4
-                        };
-                        
-                        const seasonMapping = KITSU_SEASON_MAPPINGS[parsedId.kitsuId];
-                        if (seasonMapping) {
-                            parsedId.season = seasonMapping.season;
-                            console.log(`📺 Season mapping: Kitsu ${parsedId.kitsuId} (${seasonMapping.name}) → Season ${parsedId.season}, Episode ${parsedId.episode}`);
-                        } else {
-                            // Fallback for other manual mappings
-                            parsedId.season = 1;
-                            console.log(`📺 Manual mapping fallback: Season ${parsedId.season}, Episode ${parsedId.episode}`);
-                        }
-                    } else {
-                        // Only call getKitsuSeasonInfo for non-manual mappings
-                        const seasonInfo = await AnimeService.getKitsuSeasonInfo(parsedId.kitsuId, parsedId.episode);
-                        parsedId.season = seasonInfo.season;
-                        parsedId.episode = seasonInfo.episode;
-                        console.log(`📺 Updated season info: S${parsedId.season}E${parsedId.episode}`);
-                    }
-                }
             } else {
                 console.log(`🎬 Processing IMDb content: ${parsedId.imdbId}`);
                 imdbId = parsedId.imdbId;
@@ -903,7 +1838,7 @@ class StreamService {
         }
     }
 
-    // NEW: Helper method for no rating streams
+    // Helper method for no rating streams
     static createNoRatingStream(config, originalId, imdbId = null) {
         const displayConfig = this.formatRatingDisplay(
             { rating: 'Not Available', votes: '' },

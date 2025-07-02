@@ -10,6 +10,9 @@ const Database = require('better-sqlite3');
 const app = express();
 const port = process.env.PORT || 3001;
 
+// Add JSON body parser for new endpoints
+app.use(express.json());
+
 // Database setup
 const dbPath = path.join(__dirname, 'ratings.db');
 let db;
@@ -55,10 +58,52 @@ function initDatabase() {
             PRIMARY KEY (series_id, season, episode)
         ) WITHOUT ROWID`);
         
+        // *** NEW: Add caching and mapping tables ***
+        // Table for persistent API response caching
+        db.exec(`CREATE TABLE IF NOT EXISTS api_cache (
+            cache_key TEXT PRIMARY KEY,
+            data TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL
+        ) WITHOUT ROWID`);
+        
+        // Table for Kitsu → IMDb mappings (permanent storage)
+        db.exec(`CREATE TABLE IF NOT EXISTS kitsu_imdb_mappings (
+            kitsu_id TEXT PRIMARY KEY,
+            imdb_id TEXT NOT NULL,
+            source TEXT DEFAULT 'api_discovery',
+            confidence_score INTEGER DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            last_verified INTEGER NOT NULL
+        ) WITHOUT ROWID`);
+        
+        // Optional: Table for TMDB metadata (rich metadata caching)
+        db.exec(`CREATE TABLE IF NOT EXISTS tmdb_metadata (
+            tmdb_key TEXT PRIMARY KEY,
+            tmdb_id INTEGER NOT NULL,
+            media_type TEXT NOT NULL,
+            imdb_id TEXT,
+            title TEXT,
+            original_title TEXT,
+            year INTEGER,
+            genres TEXT,
+            episode_count INTEGER,
+            popularity REAL,
+            data TEXT,
+            updated_at INTEGER NOT NULL
+        ) WITHOUT ROWID`);
+        
         // Optimized indexes
         db.exec(`CREATE INDEX IF NOT EXISTS idx_episodes_lookup ON episodes(series_id, season, episode)`);
         db.exec(`CREATE INDEX IF NOT EXISTS idx_episodes_id ON episodes(episode_id)`);
         
+        // *** NEW: Indexes for caching tables ***
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_api_cache_expires ON api_cache(expires_at)`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_kitsu_mappings_imdb ON kitsu_imdb_mappings(imdb_id)`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_tmdb_metadata_imdb ON tmdb_metadata(imdb_id)`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_tmdb_metadata_title ON tmdb_metadata(title)`);
+        
+        console.log('✅ Database tables and indexes created');
         return Promise.resolve();
     } catch (err) {
         return Promise.reject(err);
@@ -313,6 +358,8 @@ async function downloadAndProcessAllData() {
     }
 }
 
+// *** EXISTING API ENDPOINTS ***
+
 // API endpoint for ratings
 app.get('/api/rating/:id', (req, res) => {
     const id = req.params.id;
@@ -390,15 +437,258 @@ app.get('/api/episode/:seriesId/:season/:episode', (req, res) => {
     }
 });
 
-// Health check endpoint
+// *** NEW: Episode rating by episode ID (for Cinemeta fix) ***
+app.get('/api/episode/id/:episodeId', (req, res) => {
+    const { episodeId } = req.params;
+    
+    if (!episodeId || !episodeId.startsWith('tt')) {
+        return res.status(400).json({ error: 'Invalid episode ID. Must start with "tt"' });
+    }
+    
+    const episodeIdInt = imdbToInt(episodeId);
+    
+    try {
+        // Get rating for the episode directly
+        const ratingRow = db.prepare("SELECT rating, votes FROM ratings WHERE imdb_id = ?")
+                            .get(episodeIdInt);
+        
+        if (ratingRow) {
+            return res.json({
+                episodeId,
+                rating: ratingRow.rating.toFixed(1),
+                votes: ratingRow.votes.toString(),
+                type: 'episode'
+            });
+        } else {
+            return res.status(404).json({ 
+                error: 'Rating not found for episode ID',
+                episodeId
+            });
+        }
+    } catch (err) {
+        return res.status(500).json({ error: 'Database error' });
+    }
+});
+
+// *** NEW: CACHING API ENDPOINTS ***
+
+// GET /api/cache/:key - Get cached data
+app.get('/api/cache/:key', (req, res) => {
+    try {
+        const { key } = req.params;
+        const decodedKey = decodeURIComponent(key);
+        const now = Date.now();
+        
+        const result = db.prepare(
+            'SELECT data, timestamp FROM api_cache WHERE cache_key = ? AND expires_at > ?'
+        ).get(decodedKey, now);
+        
+        if (result) {
+            let parsedData;
+            try {
+                parsedData = JSON.parse(result.data);
+            } catch (e) {
+                return res.status(500).json({ error: 'Invalid cached data format' });
+            }
+            
+            res.json({
+                data: parsedData,
+                timestamp: new Date(result.timestamp).toISOString(),
+                cached: true
+            });
+        } else {
+            res.status(404).json({ error: 'Cache miss' });
+        }
+    } catch (error) {
+        console.error('Cache read error:', error);
+        res.status(500).json({ error: 'Cache read failed' });
+    }
+});
+
+// POST /api/cache - Store cached data
+app.post('/api/cache', (req, res) => {
+    try {
+        const { key, data, timestamp } = req.body;
+        
+        if (!key || !data) {
+            return res.status(400).json({ error: 'Missing key or data' });
+        }
+        
+        const timestampMs = timestamp ? new Date(timestamp).getTime() : Date.now();
+        const expiresAt = timestampMs + (60 * 60 * 1000); // 1 hour from timestamp
+        
+        const stmt = db.prepare(`
+            INSERT OR REPLACE INTO api_cache (cache_key, data, timestamp, expires_at) 
+            VALUES (?, ?, ?, ?)
+        `);
+        
+        stmt.run(key, JSON.stringify(data), timestampMs, expiresAt);
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Cache write error:', error);
+        res.status(500).json({ error: 'Cache write failed' });
+    }
+});
+
+// *** NEW: KITSU MAPPING API ENDPOINTS ***
+
+// GET /api/kitsu-mapping/:kitsuId - Get Kitsu → IMDb mapping
+app.get('/api/kitsu-mapping/:kitsuId', (req, res) => {
+    try {
+        const { kitsuId } = req.params;
+        
+        const result = db.prepare(
+            'SELECT imdb_id, source, confidence_score, created_at FROM kitsu_imdb_mappings WHERE kitsu_id = ?'
+        ).get(kitsuId);
+        
+        if (result) {
+            res.json({
+                kitsuId: kitsuId,
+                imdbId: result.imdb_id,
+                source: result.source,
+                confidence: result.confidence_score,
+                createdAt: new Date(result.created_at).toISOString()
+            });
+        } else {
+            res.status(404).json({ error: 'Mapping not found' });
+        }
+    } catch (error) {
+        console.error('Mapping read error:', error);
+        res.status(500).json({ error: 'Mapping read failed' });
+    }
+});
+
+// POST /api/kitsu-mapping - Store Kitsu → IMDb mapping
+app.post('/api/kitsu-mapping', (req, res) => {
+    try {
+        const { kitsuId, imdbId, source = 'api_discovery', confidence = 0 } = req.body;
+        
+        if (!kitsuId || !imdbId) {
+            return res.status(400).json({ error: 'Missing kitsuId or imdbId' });
+        }
+        
+        const now = Date.now();
+        
+        const stmt = db.prepare(`
+            INSERT OR REPLACE INTO kitsu_imdb_mappings 
+            (kitsu_id, imdb_id, source, confidence_score, created_at, last_verified) 
+            VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        
+        stmt.run(kitsuId, imdbId, source, confidence, now, now);
+        
+        res.json({ 
+            success: true, 
+            mapping: { kitsuId, imdbId, source } 
+        });
+    } catch (error) {
+        console.error('Mapping write error:', error);
+        res.status(500).json({ error: 'Mapping write failed' });
+    }
+});
+
+// *** NEW: STATS AND MAINTENANCE ENDPOINTS ***
+
+// GET /api/stats/cache - Cache and mapping statistics
+app.get('/api/stats/cache', (req, res) => {
+    try {
+        const now = Date.now();
+        
+        // Cache statistics
+        const cacheStats = db.prepare(`
+            SELECT 
+                COUNT(*) as total_entries,
+                COUNT(CASE WHEN expires_at > ? THEN 1 END) as active_entries,
+                COUNT(CASE WHEN expires_at <= ? THEN 1 END) as expired_entries
+            FROM api_cache
+        `).get(now, now);
+        
+        // Mapping statistics
+        const mappingStats = db.prepare(`
+            SELECT 
+                COUNT(*) as total_mappings,
+                COUNT(CASE WHEN source = 'manual' THEN 1 END) as manual_mappings,
+                COUNT(CASE WHEN source = 'tmdb' THEN 1 END) as tmdb_mappings,
+                COUNT(CASE WHEN source = 'api_discovery' THEN 1 END) as api_discovery_mappings,
+                COUNT(CASE WHEN source = 'imdb_fallback' THEN 1 END) as imdb_fallback_mappings
+            FROM kitsu_imdb_mappings
+        `).get();
+        
+        res.json({
+            cache: {
+                totalEntries: parseInt(cacheStats.total_entries),
+                activeEntries: parseInt(cacheStats.active_entries),
+                expiredEntries: parseInt(cacheStats.expired_entries)
+            },
+            mappings: {
+                totalMappings: parseInt(mappingStats.total_mappings),
+                manualMappings: parseInt(mappingStats.manual_mappings),
+                tmdbMappings: parseInt(mappingStats.tmdb_mappings),
+                apiDiscoveryMappings: parseInt(mappingStats.api_discovery_mappings),
+                imdbFallbackMappings: parseInt(mappingStats.imdb_fallback_mappings)
+            }
+        });
+    } catch (error) {
+        console.error('Stats error:', error);
+        res.status(500).json({ error: 'Stats failed' });
+    }
+});
+
+// DELETE /api/cache/cleanup - Clean expired cache entries
+app.delete('/api/cache/cleanup', (req, res) => {
+    try {
+        const now = Date.now();
+        const result = db.prepare('DELETE FROM api_cache WHERE expires_at < ?').run(now);
+        
+        res.json({ 
+            success: true, 
+            deletedEntries: result.changes 
+        });
+    } catch (error) {
+        console.error('Cache cleanup error:', error);
+        res.status(500).json({ error: 'Cleanup failed' });
+    }
+});
+
+// Health check endpoint (enhanced)
 app.get('/health', (req, res) => {
     const dbSize = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
+    
+    // Get cache stats
+    let cacheStats = null;
+    let mappingStats = null;
+    
+    try {
+        const now = Date.now();
+        const cacheResult = db.prepare(`
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN expires_at > ? THEN 1 END) as active
+            FROM api_cache
+        `).get(now);
+        
+        const mappingResult = db.prepare('SELECT COUNT(*) as total FROM kitsu_imdb_mappings').get();
+        
+        cacheStats = {
+            total: parseInt(cacheResult.total),
+            active: parseInt(cacheResult.active)
+        };
+        
+        mappingStats = {
+            total: parseInt(mappingResult.total)
+        };
+    } catch (e) {
+        // Cache stats not critical for health check
+    }
     
     res.json({
         status: 'healthy',
         lastUpdated: lastUpdated ? lastUpdated.toISOString() : null,
         ratingsCount: ratingsCount.toLocaleString(),
         episodesCount: episodesCount.toLocaleString(),
+        cacheStats,
+        mappingStats,
         memoryUsage: process.memoryUsage(),
         databaseSize: `${Math.round(dbSize / 1024 / 1024)} MB`,
         optimized: true,
@@ -406,12 +696,12 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Status endpoint
+// Status endpoint (enhanced)
 app.get('/', (req, res) => {
     const dbSize = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
     
     res.json({
-        service: 'Optimized IMDb Ratings API (better-sqlite3)',
+        service: 'Enhanced IMDb Ratings API with Caching',
         status: 'active',
         lastUpdated: lastUpdated ? lastUpdated.toISOString() : null,
         data: {
@@ -420,7 +710,7 @@ app.get('/', (req, res) => {
             compressionRatio: `${((episodesCount / 7000000) * 100).toFixed(1)}%`
         },
         storage: {
-            type: 'Compressed SQLite Database (better-sqlite3)',
+            type: 'Enhanced SQLite with Caching (better-sqlite3)',
             size: `${Math.round(dbSize / 1024 / 1024)} MB`,
             memoryUsage: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)} MB`
         },
@@ -429,24 +719,59 @@ app.get('/', (req, res) => {
             'Filtered episodes (only rated content)',
             'Optimized indexes and pragmas',
             'Batch processing with transactions',
-            'better-sqlite3 for performance'
+            'better-sqlite3 for performance',
+            '✨ NEW: API response caching',
+            '✨ NEW: Kitsu→IMDb mapping storage',
+            '✨ NEW: TMDB metadata caching'
         ],
         endpoints: {
+            // Existing endpoints
             movieRating: '/api/rating/:imdb_id',
             episodeRating: '/api/episode/:series_id/:season/:episode',
-            health: '/health'
+            episodeRatingById: '/api/episode/id/:episode_id',
+            health: '/health',
+            
+            // New caching endpoints
+            getCache: '/api/cache/:key',
+            setCache: 'POST /api/cache',
+            
+            // New mapping endpoints
+            getKitsuMapping: '/api/kitsu-mapping/:kitsu_id',
+            setKitsuMapping: 'POST /api/kitsu-mapping',
+            
+            // Stats and maintenance
+            cacheStats: '/api/stats/cache',
+            cacheCleanup: 'DELETE /api/cache/cleanup'
         },
         examples: {
             movie: '/api/rating/tt0111161',
-            episode: '/api/episode/tt0903747/1/1'
+            episode: '/api/episode/tt0903747/1/1',
+            episodeById: '/api/episode/id/tt0959621',
+            kitsuMapping: '/api/kitsu-mapping/7936',
+            cacheStats: '/api/stats/cache'
         }
     });
 });
 
+// *** SCHEDULED MAINTENANCE ***
+
+// Schedule cache cleanup every 6 hours
+cron.schedule('0 */6 * * *', () => {
+    console.log('Running scheduled cache cleanup...');
+    try {
+        const now = Date.now();
+        const result = db.prepare('DELETE FROM api_cache WHERE expires_at < ?').run(now);
+        console.log(`Cleaned up ${result.changes} expired cache entries`);
+    } catch (error) {
+        console.error('Scheduled cache cleanup failed:', error);
+    }
+});
+
 // Initialize the server
 app.listen(port, async () => {
-    console.log(`🚀 Optimized IMDb Ratings API running on http://localhost:${port}`);
+    console.log(`🚀 Enhanced IMDb Ratings API running on http://localhost:${port}`);
     console.log(`📊 Status: http://localhost:${port}/`);
+    console.log(`📈 Stats: http://localhost:${port}/api/stats/cache`);
     console.log('');
     
     // Initialize database
@@ -463,7 +788,7 @@ app.listen(port, async () => {
         console.log('');
         await downloadAndProcessAllData();
     } else {
-        console.log(`Optimized database already loaded`);
+        console.log(`Enhanced database already loaded`);
         
         // Get counts
         ratingsCount = db.prepare("SELECT COUNT(*) as count FROM ratings").get().count;
@@ -472,8 +797,18 @@ app.listen(port, async () => {
         episodesCount = db.prepare("SELECT COUNT(*) as count FROM episodes").get().count;
         console.log(`   📺 ${episodesCount.toLocaleString()} episodes`);
         
+        // Get cache stats
+        try {
+            const cacheCount = db.prepare("SELECT COUNT(*) as count FROM api_cache").get().count;
+            const mappingCount = db.prepare("SELECT COUNT(*) as count FROM kitsu_imdb_mappings").get().count;
+            console.log(`   💾 ${cacheCount} cached responses`);
+            console.log(`   🎌 ${mappingCount} Kitsu mappings`);
+        } catch (e) {
+            console.log(`   💾 Cache tables ready`);
+        }
+        
         const dbSize = fs.statSync(dbPath).size;
-        console.log(`   Database: ${Math.round(dbSize / 1024 / 1024)} MB`);
+        console.log(`   📁 Database: ${Math.round(dbSize / 1024 / 1024)} MB`);
     }
     
     // Schedule daily updates at 2 AM
@@ -483,5 +818,11 @@ app.listen(port, async () => {
     });
     
     console.log('');
-    console.log('Ready to serve optimized ratings data!');
+    console.log('✅ Ready to serve enhanced ratings data with caching!');
+    console.log('✨ New features:');
+    console.log('   - API response caching for rate limit protection');
+    console.log('   - Kitsu→IMDb mapping storage for anime support');
+    console.log('   - TMDB metadata caching for rich data');
+    console.log('   - Automatic cache cleanup every 6 hours');
+    console.log('   - Enhanced statistics and monitoring');
 });
