@@ -27,6 +27,55 @@ class Utils {
         }
     }
 
+    // Parse config from URL path instead of query params
+    static parseConfigFromPath(pathname) {
+        // Extract config segment from path like: /c_showVotes-true_format-multiline/manifest.json
+        const configMatch = pathname.match(/\/c_([^\/]+)\//);
+
+        if (!configMatch) {
+            return DEFAULT_CONFIG;
+        }
+
+        const configStr = configMatch[1];
+        const config = { ...DEFAULT_CONFIG };
+
+        try {
+            // Parse key-value pairs separated by underscores
+            const pairs = configStr.split('_');
+
+            for (const pair of pairs) {
+                const [key, value] = pair.split('-');
+                if (key && value !== undefined) {
+                    // Convert string values to appropriate types
+                    if (value === 'true') config[key] = true;
+                    else if (value === 'false') config[key] = false;
+                    else if (!isNaN(value) && value !== '') config[key] = Number(value);
+                    else config[key] = decodeURIComponent(value); // Handle encoded values
+                }
+            }
+
+            console.log('Parsed path config:', config);
+            return config;
+        } catch (e) {
+            console.error('Error parsing path config:', e);
+            return DEFAULT_CONFIG;
+        }
+    }
+
+    // NEW: Generate config path segment
+    static generateConfigPath(config) {
+        const pairs = [];
+
+        for (const [key, value] of Object.entries(config)) {
+            if (value !== DEFAULT_CONFIG[key]) { // Only include non-default values
+                const encodedValue = encodeURIComponent(value.toString());
+                pairs.push(`${key}-${encodedValue}`);
+            }
+        }
+
+        return pairs.length > 0 ? `c_${pairs.join('_')}` : '';
+    }
+
     static setCORSHeaders(res) {
         const headers = {
             'Access-Control-Allow-Origin': '*',
@@ -86,9 +135,12 @@ class Utils {
     }
 
     static cleanPathname(pathname) {
-        const cleaned = pathname.replace(/^\/(api|stremio)/, '');
+        // Remove both old /api and /stremio prefixes, and config segments
+        const cleaned = pathname
+            .replace(/^\/(api|stremio)/, '')
+            .replace(/\/c_[^\/]+/, ''); // Remove config segment
         return cleaned.startsWith('/') ? cleaned : '/' + cleaned;
-    }
+        }
 
     // NEW: Vote formatting utility
     static formatVotes(votes, format = 'comma') {
@@ -1626,7 +1678,7 @@ class StreamService {
             ratingLine
         ];
         if (showVotes && formattedVotes) {
-            const firstDigitPos = ratingLine.search(/\d/);
+            const firstDigitPos = ratingLine.search(/\d/) - 1;
             const indent = ' '.repeat(firstDigitPos);
             lines.push(`${indent}(${formattedVotes} votes)`);
         }
@@ -1901,9 +1953,16 @@ class HtmlService {
 
 // Route Handlers
 class RouteHandler {
-    static async handleManifest(searchParams) {
-        const configStr = searchParams.get?.('config') || null;
-        const config = Utils.parseConfig(configStr);
+    static async handleManifest(pathname, searchParams) {
+        // Try path-based config first, fallback to query param for backward compatibility
+        let config = Utils.parseConfigFromPath(pathname);
+
+        // Fallback to old query param method if no path config found
+        if (JSON.stringify(config) === JSON.stringify(DEFAULT_CONFIG)) {
+            const configStr = searchParams.get?.('config') || null;
+            config = Utils.parseConfig(configStr);
+        }
+
         return ManifestService.generate(config);
     }
 
@@ -1922,8 +1981,14 @@ class RouteHandler {
             id = id.slice(0, -5);
         }
 
-        const configStr = searchParams.get?.('config') || null;
-        const config = Utils.parseConfig(configStr);
+        // Extract config from path
+        let config = Utils.parseConfigFromPath(pathname);
+
+        // Fallback to query param for backward compatibility
+        if (JSON.stringify(config) === JSON.stringify(DEFAULT_CONFIG)) {
+            const configStr = searchParams.get?.('config') || null;
+            config = Utils.parseConfig(configStr);
+        }
 
         console.log('Stream request with config:', config);
 
@@ -1971,14 +2036,14 @@ module.exports = async (req, res) => {
 
         console.log(`Processing request: ${req.method} ${cleanPath}`);
 
-        // Handle configuration page
-        if (cleanPath === '/configure') {
+        // Handle configuration page (support both /configure and /c_*/configure)
+        if (pathname.endsWith('/configure') || pathname === '/configure') {
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
             return res.end(HtmlService.generateConfigurePage(baseUrl));
         }
 
         // Handle health check
-        if (cleanPath === '/health') {
+        if (pathname.endsWith('/health') || pathname === '/health') {
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             const result = RouteHandler.handleHealth();
             return res.end(JSON.stringify(result, null, 2));
@@ -1987,13 +2052,13 @@ module.exports = async (req, res) => {
         // Handle addon routes
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
-        if (cleanPath === '/manifest.json') {
-            const result = await RouteHandler.handleManifest(searchParams);
+        if (pathname.endsWith('/manifest.json')) {
+            const result = await RouteHandler.handleManifest(pathname, searchParams);
             return res.end(JSON.stringify(result));
         }
 
-        if (cleanPath.includes('/stream/')) {
-            const result = await RouteHandler.handleStream(cleanPath, searchParams);
+        if (pathname.includes('/stream/')) {
+            const result = await RouteHandler.handleStream(pathname, searchParams);
             return res.end(JSON.stringify(result));
         }
 

@@ -513,7 +513,7 @@
                         <div class="stream-content multiline-display">
                             <div class="top-line"></div>
                             <div>⭐&ensp;IMDb:&ensp;${formattedRating}</div>
-                            ${showVotes ? `<div style="margin-left: 2em;">(${formattedVotes} votes)</div>` : ''}
+                            ${showVotes ? `<div style="margin-left: 1.8em;">(${formattedVotes} votes)</div>` : ''}
                             <div class="bottom-line"></div>
                         </div>
                     </div>
@@ -546,7 +546,7 @@
                         <div class="stream-content-mobile multiline-display">
                             <div class="top-line"></div>
                             <div>⭐&ensp;IMDb:&ensp;${formattedRating}</div>
-                            ${showVotes ? `<div style="margin-left: 2em;">(${formattedVotes} votes)</div>` : ''}
+                            ${showVotes ? `<div style="margin-left: 1.8em;">(${formattedVotes} votes)</div>` : ''}
                             <div class="bottom-line"></div>
                         </div>
                     </div>
@@ -557,27 +557,42 @@
             }
             previewMobile.innerHTML = mobileContentHtml;
             
-            // Generate manifest URL with config
-            const configStr = encodeURIComponent(JSON.stringify(config));
-            const url = `${BASE_URL}/manifest.json?config=${configStr}`;
-            
+            // Generate path-based config URL
+            const configPairs = [];
+            const defaults = {
+                showVotes: true,
+                format: 'multiline',
+                streamName: 'IMDb Rating',
+                voteFormat: 'comma',
+                ratingFormat: 'withMax'
+            };
+
+            for (const [key, value] of Object.entries(config)) {
+                if (value !== defaults[key]) {
+                    const encodedValue = encodeURIComponent(value.toString());
+                    configPairs.push(`${key}-${encodedValue}`);
+                }
+            }
+
+            const configPath = configPairs.length > 0 ? `/c_${configPairs.join('_')}` : '';
+            const url = `${BASE_URL}${configPath}/manifest.json`;
+
             document.getElementById('manifestUrl').textContent = url;
         }
         
         function installDefault() {
-            // Replace 'https://' with 'stremio://' in the BASE_URL
             const stremioUrl = `${BASE_URL}/manifest.json`.replace('https://', 'stremio://');
-            window.open(stremioUrl, '_blank');
+            const link = document.createElement('a');
+            link.href = stremioUrl;
+            link.click();
         }
-        
+
         function installCustom() {
-            if (currentConfig) {
-                const configStr = encodeURIComponent(JSON.stringify(currentConfig));
-                // Get the generated URL from the manifestUrl div and replace 'https://'
-                const manifestTextUrl = document.getElementById('manifestUrl').textContent;
-                const stremioUrl = manifestTextUrl.replace('https://', 'stremio://');
-                window.open(stremioUrl, '_blank');
-            }
+            const manifestTextUrl = document.getElementById('manifestUrl').textContent;
+            const stremioUrl = manifestTextUrl.replace('https://', 'stremio://');
+            const link = document.createElement('a');
+            link.href = stremioUrl;
+            link.click();
         }
         
         function copyToClipboard(text) {
