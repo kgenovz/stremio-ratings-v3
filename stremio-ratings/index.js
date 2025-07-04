@@ -1737,12 +1737,13 @@ class StreamService {
         return {
             name: displayConfig.name,
             description: displayConfig.description,
+            url: "https://www.imdb.com/title/tt0000000/",
             externalUrl: `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/`,
             behaviorHints: {
                 notWebReady: true,
                 bingeGroup: `ratings-${id}`
             },
-            type: "other"
+            type: "movie"
         };
     }
 
