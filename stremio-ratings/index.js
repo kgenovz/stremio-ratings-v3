@@ -9,8 +9,10 @@ const DEFAULT_CONFIG = {
     showVotes: true,
     format: 'multiline',
     streamName: 'IMDb Rating',
-    voteFormat: 'comma', // NEW: 'comma', 'rounded'
-    ratingFormat: 'withMax' // NEW: 'withMax' (8/10), 'simple' (8)
+    voteFormat: 'comma', 
+    ratingFormat: 'withMax',
+    showLines: true,
+    showSeriesRating: false
 };
 
 // Utility Functions
@@ -1639,50 +1641,91 @@ class ManifestService {
 
 // Stream Service
 class StreamService {
-    static formatRatingDisplay(ratingData, config, type = 'episode') {
+    static formatRatingDisplay(ratingData, config, type = 'episode', seriesRating = null) {
         const { rating, votes } = ratingData;
-        const { showVotes, format, streamName, voteFormat, ratingFormat } = config;
-
-        // Handle "not available" case
-        if (type === 'not_available') {
-            return {
-                name: streamName,
-                description: '❌  Episode rating not available\n⭐  IMDb Series Rating:  Not Available'
-            };
-        }
+        const { showVotes, format, streamName, voteFormat, ratingFormat, showLines, showSeriesRating } = config;
 
         // Format votes and rating according to config
         const formattedVotes = Utils.formatVotes(votes, voteFormat);
         const formattedRating = Utils.formatRating(rating, ratingFormat);
         const votesText = showVotes && formattedVotes ? ` (${formattedVotes} votes)` : '';
 
-        // Handle series fallback case
+        // Format series rating if available and enabled
+        let seriesRatingForSingleLine = '';
+        if (showSeriesRating && seriesRating && type !== 'movie') {
+            const formattedSeriesRating = Utils.formatRating(seriesRating.rating, ratingFormat);
+            const formattedSeriesVotes = Utils.formatVotes(seriesRating.votes, voteFormat);
+            const seriesVotesText = showVotes && formattedSeriesVotes ? ` (${formattedSeriesVotes} votes)` : '';
+            seriesRatingForSingleLine = `📺  Series:  ${formattedSeriesRating}${seriesVotesText}`;
+        }
+
+        // Handle special cases first (not_available, series_fallback)
+        if (type === 'not_available') {
+            let description = '❌  Episode rating not available\n⭐  IMDb Series Rating:  Not Available';
+            if (showSeriesRating && seriesRating) {
+                const formattedSeriesRating = Utils.formatRating(seriesRating.rating, ratingFormat);
+                const formattedSeriesVotes = Utils.formatVotes(seriesRating.votes, voteFormat);
+                const seriesVotesText = showVotes && formattedSeriesVotes ? ` (${formattedSeriesVotes} votes)` : '';
+                description = `❌  Episode rating not available\n📺  Series:  ${formattedSeriesRating}${seriesVotesText}`;
+            }
+            return { name: streamName, description };
+        }
+
         if (type === 'series_fallback') {
-            return {
-                name: streamName,
-                description: `❌  Episode rating not available\n⭐  IMDb Series Rating:  ${formattedRating} ${votesText}`
-            };
+            let description = `❌  Episode rating not available\n⭐  IMDb Series Rating:  ${formattedRating} ${votesText}`;
+            if (showSeriesRating && seriesRating) {
+                description = `❌  Episode rating not available\n📺  Series:  ${formattedRating} ${votesText}`;
+            }
+            return { name: streamName, description };
         }
 
+        // Handle single line format
         if (format === 'singleline') {
-            return {
-                name: streamName,
-                description: `⭐  IMDb:  ${formattedRating} ${votesText}`
-            };
+            let description = `⭐  IMDb:  ${formattedRating} ${votesText}`;
+            if (seriesRatingForSingleLine) {
+                description += `\n${seriesRatingForSingleLine}`;
+            }
+            return { name: streamName, description };
         }
 
-        // ── MULTILINE (episode)
+        // Handle multiline format
         const ratingLine = `⭐  IMDb:  ${formattedRating}`;
-        const lines = [
-            '─'.repeat(ratingLine.length),
-            ratingLine
-        ];
+        const lines = [];
+
+        if (showLines) {
+            lines.push('─'.repeat(ratingLine.length));
+        }
+
+        lines.push(ratingLine);
+
         if (showVotes && formattedVotes) {
             const firstDigitPos = ratingLine.search(/\d/) - 1;
             const indent = ' '.repeat(firstDigitPos);
             lines.push(`${indent}(${formattedVotes} votes)`);
         }
-        lines.push('─'.repeat(ratingLine.length));
+
+        // Add series rating line if enabled
+        if (seriesRatingForSingleLine) {
+            // Split series rating and votes for proper alignment
+            if (showSeriesRating && seriesRating && type !== 'movie') {
+                const formattedSeriesRating = Utils.formatRating(seriesRating.rating, ratingFormat);
+                const formattedSeriesVotes = Utils.formatVotes(seriesRating.votes, voteFormat);
+
+                const seriesRatingLine = `📺  Series:  ${formattedSeriesRating}`;
+                lines.push(seriesRatingLine);
+
+                // Add series votes with same alignment as episode votes
+                if (showVotes && formattedSeriesVotes) {
+                    const firstDigitPos = seriesRatingLine.search(/\d/) - 3;
+                    const indent = ' '.repeat(firstDigitPos);
+                    lines.push(`${indent}(${formattedSeriesVotes} votes)`);
+                }
+            }
+        }
+
+        if (showLines) {
+            lines.push('─'.repeat(ratingLine.length));
+        }
 
         return {
             name: streamName,
@@ -1703,7 +1746,7 @@ class StreamService {
         };
     }
 
-    static async handleSeriesStreams(imdbId, season, episode, id, config) {
+    static async handleSeriesStreams(imdbId, season, episode, id, config, seriesRating) {
         console.log(`Processing episode ${season}x${episode} for series ${imdbId}`);
 
         // Try episode-specific rating first
@@ -1766,7 +1809,7 @@ class StreamService {
         if (ratingData) {
             // Explicitly set type for episode ratings
             ratingData.type = 'episode';
-            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type);
+            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type, seriesRating);
             const stream = this.createStream(displayConfig, imdbId, id, ratingData);
             console.log(`✅ Added episode rating stream: ${ratingData.rating}/10`);
             return [stream];
@@ -1778,7 +1821,7 @@ class StreamService {
 
         if (ratingData) {
             ratingData.type = 'series_fallback';
-            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type);
+            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type, seriesRating);
             const stream = this.createStream(displayConfig, imdbId, id, ratingData);
             console.log(`✅ Added series fallback rating stream: ${ratingData.rating}/10`);
             return [stream];
@@ -1788,7 +1831,8 @@ class StreamService {
         const displayConfig = this.formatRatingDisplay(
             { rating: 'Not Available', votes: '' },
             config,
-            'not_available'
+            'not_available',
+            seriesRating
         );
 
         const stream = this.createStream(displayConfig, imdbId, id);
@@ -1811,7 +1855,7 @@ class StreamService {
         }
 
         if (ratingData) {
-            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type || 'movie');
+            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type || 'movie', null); // ADD null HERE
             const stream = this.createStream(displayConfig, id, id, ratingData);
             console.log(`✅ Added ${ratingData.type || 'movie'} rating stream: ${ratingData.rating}/10`);
             return [stream];
@@ -1820,7 +1864,9 @@ class StreamService {
         // No rating available
         const displayConfig = this.formatRatingDisplay(
             { rating: 'Not Available', votes: '' },
-            config
+            config,
+            'movie', // ADD 'movie' HERE
+            null     // ADD null HERE
         );
 
         const stream = this.createStream({
@@ -1879,7 +1925,14 @@ class StreamService {
             // Get rating data
             if (parsedId.type === 'series' && parsedId.season && parsedId.episode) {
                 console.log(`📺 Processing as series episode: S${parsedId.season}E${parsedId.episode}`);
-                return await this.handleSeriesStreams(imdbId, parsedId.season, parsedId.episode, parsedId.originalId, config);
+
+                // Fetch series rating if needed
+                let seriesRating = null;
+                if (config.showSeriesRating) {
+                    seriesRating = await RatingService.getRating(imdbId);
+                }
+
+                return await this.handleSeriesStreams(imdbId, parsedId.season, parsedId.episode, parsedId.originalId, config, seriesRating);
             } else {
                 console.log(`🎞️ Processing as movie/single content`);
                 return await this.handleMovieStreams(imdbId, config);
@@ -1894,7 +1947,8 @@ class StreamService {
     static createNoRatingStream(config, originalId, imdbId = null) {
         const displayConfig = this.formatRatingDisplay(
             { rating: 'Not Available', votes: '' },
-            config
+            config,
+            seriesRating
         );
 
         const stream = this.createStream({

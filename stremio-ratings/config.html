@@ -46,10 +46,10 @@
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
-        .config:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
-        }
+            .config:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+            }
 
         .form-group {
             margin: 15px 0;
@@ -58,14 +58,14 @@
             gap: 12px;
         }
 
-        .form-group label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 500;
-            cursor: pointer;
-            user-select: none;
-        }
+            .form-group label {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-weight: 500;
+                cursor: pointer;
+                user-select: none;
+            }
 
         input[type="checkbox"] {
             width: 18px;
@@ -86,16 +86,16 @@
             transition: border-color 0.3s ease, background-color 0.3s ease;
         }
 
-        input[type="text"]:focus, select:focus {
-            outline: none;
-            border-color: #7b68ee;
-            background: #4a4a4a;
-            box-shadow: 0 0 0 3px rgba(123, 104, 238, 0.1);
-        }
+            input[type="text"]:focus, select:focus {
+                outline: none;
+                border-color: #7b68ee;
+                background: #4a4a4a;
+                box-shadow: 0 0 0 3px rgba(123, 104, 238, 0.1);
+            }
 
-        input[type="text"]:hover, select:hover {
-            border-color: #888888;
-        }
+            input[type="text"]:hover, select:hover {
+                border-color: #888888;
+            }
 
         button {
             background: linear-gradient(145deg, #7b68ee, #6a5acd);
@@ -111,15 +111,29 @@
             box-shadow: 0 4px 15px rgba(123, 104, 238, 0.3);
         }
 
-        button:hover {
-            background: linear-gradient(145deg, #6a5acd, #5a4fcf);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(123, 104, 238, 0.4);
+            button:hover {
+                background: linear-gradient(145deg, #6a5acd, #5a4fcf);
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(123, 104, 238, 0.4);
+            }
+
+            button:active {
+                transform: translateY(0);
+                box-shadow: 0 2px 10px rgba(123, 104, 238, 0.3);
+            }
+
+        /* Main container for all rating information */
+        .stream-content {
+            display: flex;
+            flex-direction: column; /* Stack all rating rows vertically */
+            gap: 0.25em; /* Adds a small space between the rating rows */
         }
 
-        button:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 10px rgba(123, 104, 238, 0.3);
+        /* Container for a single line of rating (e.g., IMDb + its votes) */
+        .rating-row {
+            display: flex;
+            flex-direction: column; /* Stack the rating and votes vertically */
+            align-items: flex-start; /* Align to the left */
         }
 
         .url {
@@ -135,9 +149,9 @@
             white-space: nowrap;
         }
 
-        .url:hover {
-            background: #3a3a3a;
-        }
+            .url:hover {
+                background: #3a3a3a;
+            }
 
         .preview {
             background: #1a1a2e;
@@ -175,9 +189,9 @@
             width: 100%; /* Ensure it fills the preview width */
         }
 
-        .stream-item:last-child {
-            border-bottom: none;
-        }
+            .stream-item:last-child {
+                border-bottom: none;
+            }
 
         .stream-name {
             color: #ffffff;
@@ -194,13 +208,13 @@
             flex-grow: 1; /* Allow content to take available space */
         }
 
-        /* Styles for multi-line PC preview content (flex container) */
-        .stream-content.multiline-display {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start; /* Aligns content lines to the right */
-            white-space: normal; /* Allow wrapping */
-        }
+            /* Styles for multi-line PC preview content (flex container) */
+            .stream-content.multiline-display {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start; /* Aligns content lines to the right */
+                white-space: normal; /* Allow wrapping */
+            }
 
         /* Styles for mobile preview */
         .stream-item-mobile {
@@ -213,9 +227,9 @@
             width: 100%; /* Ensure it fills the preview width */
         }
 
-        .stream-item-mobile:last-child {
-            border-bottom: none;
-        }
+            .stream-item-mobile:last-child {
+                border-bottom: none;
+            }
 
         .stream-name-mobile {
             color: #ffffff;
@@ -232,14 +246,14 @@
             white-space: nowrap; /* Default for single line Mobile */
         }
 
-        /* Styles for multi-line Mobile preview content (flex container) */
-        .stream-content-mobile.multiline-display {
-            display: flex;
-            flex-direction: column;
-            width: 100%;
-            align-items: flex-start; /* Aligns content lines to the left */
-            white-space: normal; /* Allow wrapping */
-        }
+            /* Styles for multi-line Mobile preview content (flex container) */
+            .stream-content-mobile.multiline-display {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                align-items: flex-start; /* Aligns content lines to the left */
+                white-space: normal; /* Allow wrapping */
+            }
 
         /* New styles for top and bottom lines */
         .top-line, .bottom-line {
@@ -268,10 +282,10 @@
             transition: all 0.2s ease;
         }
 
-        .copy-button:hover {
-            background: #555555;
-            border-color: #7b68ee;
-        }
+            .copy-button:hover {
+                background: #555555;
+                border-color: #7b68ee;
+            }
 
         .info-box {
             background: rgba(123, 104, 238, 0.1);
@@ -282,9 +296,9 @@
             font-size: 14px;
         }
 
-        .info-box strong {
-            color: #7b68ee;
-        }
+            .info-box strong {
+                color: #7b68ee;
+            }
 
         .form-row {
             display: flex;
@@ -293,11 +307,11 @@
             align-items: center;
         }
 
-        .form-row .form-group {
-            margin: 0;
-            flex: 1;
-            min-width: 200px;
-        }
+            .form-row .form-group {
+                margin: 0;
+                flex: 1;
+                min-width: 200px;
+            }
 
         .option-note {
             font-size: 12px;
@@ -310,16 +324,16 @@
             body {
                 padding: 15px;
             }
-            
+
             .config {
                 padding: 20px;
             }
-            
+
             input[type="text"], select {
                 width: 100%;
                 max-width: none;
             }
-            
+
             .form-group {
                 flex-direction: column;
                 align-items: flex-start;
@@ -329,7 +343,7 @@
             .form-row {
                 flex-direction: column;
             }
-            
+
             h1 {
                 font-size: 2rem;
             }
@@ -338,18 +352,18 @@
 </head>
 <body>
     <h1>🎬 IMDb Ratings Configuration</h1>
-    
+
     <div class="info-box">
         <strong>Welcome!</strong> Configure your IMDb ratings addon below. You can customize how ratings and vote counts are displayed, then install the addon directly to Stremio.
     </div>
-    
+
     <div class="config">
         <h3>🚀 Quick Install (Default Settings)</h3>
         <div class="url">{{BASE_URL}}/manifest.json</div>
         <button onclick="installDefault()">📱 Install Default Version</button>
         <button class="copy-button" onclick="copyToClipboard('{{BASE_URL}}/manifest.json')">📋 Copy URL</button>
     </div>
-    
+
     <div class="config">
         <h3>⚙️ Custom Settings</h3>
         <div class="settings-grid">
@@ -359,7 +373,22 @@
                     <span>Show vote counts in ratings display</span>
                 </label>
             </div>
-            
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="showLines" checked>
+                    <span>Show horizontal lines in multi-line format</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="showSeriesRating">
+                    <span>Show series rating on episode streams</span>
+                </label>
+                <div class="option-note">Only applies to TV series episodes, not movies</div>
+            </div>
+
             <div class="form-row">
                 <div class="form-group">
                     <label>
@@ -370,7 +399,7 @@
                         </select>
                     </label>
                 </div>
-                
+
                 <div class="form-group">
                     <label>
                         Stream Name:
@@ -389,7 +418,7 @@
                         </select>
                     </label>
                 </div>
-                
+
                 <div class="form-group">
                     <label>
                         Rating Format:
@@ -402,7 +431,7 @@
             </div>
         </div>
     </div>
-    
+
     <div class="config">
         <h3>👁️ Live Preview</h3>
         <div style="display: flex; gap: 20px; flex-wrap: wrap;">
@@ -420,14 +449,14 @@
             </div>
         </div>
     </div>
-    
+
     <div class="config">
         <h3>🔗 Install Custom Version</h3>
         <div class="url" id="manifestUrl">Generating URL...</div>
         <button onclick="installCustom()">📱 Install Custom Version</button>
         <button class="copy-button" onclick="copyToClipboard(document.getElementById('manifestUrl').textContent)">📋 Copy URL</button>
     </div>
-    
+
     <div class="info-box">
         <strong>How to install:</strong> Click the install button to open Stremio automatically, or copy the URL and paste it into Stremio's addon installation page.
     </div>
@@ -435,11 +464,11 @@
     <script>
         const BASE_URL = '{{BASE_URL}}';
         let currentConfig = null;
-        
+
         function formatVotes(votes, format) {
             const num = parseInt(votes.toString().replace(/,/g, ''));
             if (isNaN(num)) return votes;
-            
+
             if (format === 'rounded') {
                 if (num >= 1000000) {
                     return (num / 1000000).toFixed(1).replace('.0', '') + 'M';
@@ -453,7 +482,7 @@
                 return num.toLocaleString();
             }
         }
-        
+
         function formatRating(rating, format) {
             if (format === 'simple') {
                 return rating.toString();
@@ -461,102 +490,132 @@
                 return `${rating}/10`;
             }
         }
-        
+
         function updatePreview() {
             const showVotes = document.getElementById('showVotes').checked;
+            const showLines = document.getElementById('showLines').checked;
             const format = document.getElementById('format').value;
             const streamName = document.getElementById('streamName').value || 'IMDb Rating';
             const voteFormat = document.getElementById('voteFormat').value;
             const ratingFormat = document.getElementById('ratingFormat').value;
-            
+            const showSeriesRating = document.getElementById('showSeriesRating').checked;
+
+
+
             // Build config object
             const config = {
                 showVotes: showVotes,
                 format: format,
                 streamName: streamName,
                 voteFormat: voteFormat,
-                ratingFormat: ratingFormat
+                ratingFormat: ratingFormat,
+                showLines: showLines,
+                showSeriesRating: showSeriesRating
             };
-            
+
             currentConfig = config;
-            
+
             // Generate preview with sample data
             const sampleVotes = 45123;
             const sampleRating = 8.1;
-            
+
             const formattedVotes = formatVotes(sampleVotes, voteFormat);
             const formattedRating = formatRating(sampleRating, ratingFormat);
             const votesText = showVotes ? ` (${formattedVotes} votes)` : '';
-            
+
             // Get preview elements
             const previewPC = document.getElementById('previewPC');
             const previewMobile = document.getElementById('previewMobile');
+
+            const sampleSeriesRating = 8.5;
+            const sampleSeriesVotes = 125000;
+            const formattedSeriesRating = formatRating(sampleSeriesRating, ratingFormat);
+            const formattedSeriesVotes = formatVotes(sampleSeriesVotes, voteFormat);
+            const seriesVotesText = showVotes ? ` (${formattedSeriesVotes} votes)` : '';
+
+            // Create separate series rating lines for different layouts
+            const seriesRatingLineSingle = showSeriesRating ? `📺&ensp;Series:&ensp;${formattedSeriesRating}${seriesVotesText}</div>` : '';
+            const seriesRatingLineMulti = showSeriesRating ? `📺&ensp;Series:&ensp;${formattedSeriesRating}` : '';
 
             // --- PC Preview Logic ---
             let pcContentHtml;
             const pcStreamContentDiv = document.createElement('div');
             pcStreamContentDiv.className = 'stream-content';
 
+            // For PC single line:
             if (format === 'singleline') {
+                const secondLine = showSeriesRating ? `<br><div style="text-align: right;">${seriesRatingLineSingle}</div>` : '';
                 pcContentHtml = `
-                    <div class="stream-item">
-                        <div class="stream-name">${streamName}</div>
-                        <div class="stream-content" style="white-space: nowrap; text-align: right;">⭐&ensp;IMDb:&ensp;${formattedRating} ${votesText}</div>
-                    </div>
-                `;
-                pcStreamContentDiv.classList.remove('multiline-display'); // Ensure class is removed if changing from multiline
+        <div class="stream-item">
+            <div class="stream-name">${streamName}</div>
+                <div class="stream-content" style="white-space: nowrap; text-align: left;">
+                ⭐&ensp;IMDb:&ensp;${formattedRating} ${votesText}
+                ${secondLine}
+            </div>
+        </div>
+        `;
             } else {
-                // For multi-line PC, align the content block to the right, and then apply margin-right to the votes line
+                // For PC multiline:
                 pcContentHtml = `
-                    <div class="stream-item">
-                        <div class="stream-name">${streamName}</div>
-                        <div class="stream-content multiline-display">
-                            <div class="top-line"></div>
-                            <div>⭐&ensp;IMDb:&ensp;${formattedRating}</div>
-                            ${showVotes ? `<div style="margin-left: 1.8em;">(${formattedVotes} votes)</div>` : ''}
-                            <div class="bottom-line"></div>
-                        </div>
-                    </div>
-                `;
-                // Note: The '2.5em' margin-right is an estimate for the width of "8.1/10" and needs
-                // to be fine-tuned to align the votes line start under the rating start.
-                // Adjust this value if needed (e.g., 2em, 3em, etc.)
+        <div class="stream-item">
+            <div class="stream-name">${streamName}</div>
+                <div class="stream-content">
+                ${showLines ? '<div class="top-line"></div>' : ''}
+                <div class="rating-row">
+                <div>⭐&ensp;IMDb:&ensp;${formattedRating}</div>
+                ${showVotes ? `<div style="margin-left: 1.8em;">(${formattedVotes} votes)</div>` : ''}
+            </div>
+
+        ${showSeriesRating ? `
+            <div class="rating-row">
+                <div>${seriesRatingLineMulti}</div>
+                ${seriesVotesText ? `<div style="margin-left: 1.8em;">${seriesVotesText}</div>` : ''}
+            </div>
+        ` : ''}
+        ${showLines ? '<div class="bottom-line"></div>' : ''}
+        </div>
+    </div>
+    `;
             }
             previewPC.innerHTML = pcContentHtml;
-
 
             // --- Mobile Preview Logic ---
             let mobileContentHtml;
             const mobileStreamContentDiv = document.createElement('div');
             mobileStreamContentDiv.className = 'stream-content-mobile';
 
+            // For Mobile single line:
             if (format === 'singleline') {
+                const secondLine = showSeriesRating ? `<br><div style="text-align: left;">${seriesRatingLineSingle}</div>` : '';
                 mobileContentHtml = `
-                    <div class="stream-item-mobile">
-                        <div class="stream-name-mobile">${streamName}</div>
-                        <div class="stream-content-mobile" style="white-space: nowrap; text-align: left;">⭐&ensp;IMDb:&ensp;${formattedRating} ${votesText}</div>
-                    </div>
-                `;
-                mobileStreamContentDiv.classList.remove('multiline-display'); // Ensure class is removed if changing from multiline
+<div class="stream-item-mobile">
+    <div class="stream-name-mobile">${streamName}</div>
+    <div class="stream-content-mobile" style="white-space: nowrap; text-align: left;">
+        ⭐&ensp;IMDb:&ensp;${formattedRating} ${votesText}
+        ${secondLine}
+    </div>
+</div>
+`;
             } else {
-                // For multi-line Mobile, align content block to the left, and apply margin-left to the votes line
+                // For Mobile multiline:
                 mobileContentHtml = `
-                    <div class="stream-item-mobile">
-                        <div class="stream-name-mobile">${streamName}</div>
-                        <div class="stream-content-mobile multiline-display">
-                            <div class="top-line"></div>
-                            <div>⭐&ensp;IMDb:&ensp;${formattedRating}</div>
-                            ${showVotes ? `<div style="margin-left: 1.8em;">(${formattedVotes} votes)</div>` : ''}
-                            <div class="bottom-line"></div>
-                        </div>
-                    </div>
-                `;
-                // Note: The '3.5em' margin-left is an estimate for the width of "⭐&ensp;IMDb:&ensp;"
-                // and needs to be fine-tuned to align the votes line start under the rating start.
-                // Adjust this value if needed (e.g., 3em, 4em, etc.)
+<div class="stream-item-mobile">
+    <div class="stream-name-mobile">${streamName}</div>
+    <div class="stream-content-mobile multiline-display">
+        ${showLines ? '<div class="top-line"></div>' : ''}
+        <div>⭐&ensp;IMDb:&ensp;${formattedRating}</div>
+        ${showVotes ? `<div style="margin-left: 1.8em;">(${formattedVotes} votes)</div>` : ''}
+        ${showSeriesRating ? `
+            <div>${seriesRatingLineMulti}</div>
+            ${seriesVotesText ? `<div style="margin-left: 1.8em;">${seriesVotesText}</div>` : ''}
+        ` : ''}
+        ${showLines ? '<div class="bottom-line"></div>' : ''}
+    </div>
+</div>
+`;
             }
             previewMobile.innerHTML = mobileContentHtml;
-            
+
             // Generate path-based config URL
             const configPairs = [];
             const defaults = {
@@ -564,7 +623,9 @@
                 format: 'multiline',
                 streamName: 'IMDb Rating',
                 voteFormat: 'comma',
-                ratingFormat: 'withMax'
+                ratingFormat: 'withMax',
+                showLines: true,
+                showSeriesRating: false
             };
 
             for (const [key, value] of Object.entries(config)) {
@@ -579,7 +640,7 @@
 
             document.getElementById('manifestUrl').textContent = url;
         }
-        
+
         function installDefault() {
             const stremioUrl = `${BASE_URL}/manifest.json`.replace('https://', 'stremio://');
             const link = document.createElement('a');
@@ -594,7 +655,7 @@
             link.href = stremioUrl;
             link.click();
         }
-        
+
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(() => {
                 // Visual feedback
@@ -602,7 +663,7 @@
                 const originalText = button.textContent;
                 button.textContent = '✅ Copied!';
                 button.style.background = '#28a745';
-                
+
                 setTimeout(() => {
                     button.textContent = originalText;
                     button.style.background = '';
@@ -618,17 +679,19 @@
                 document.body.removeChild(textArea);
             });
         }
-        
+
         // Event listeners
         document.getElementById('showVotes').addEventListener('change', updatePreview);
         document.getElementById('format').addEventListener('change', updatePreview);
         document.getElementById('streamName').addEventListener('input', updatePreview);
         document.getElementById('voteFormat').addEventListener('change', updatePreview);
         document.getElementById('ratingFormat').addEventListener('change', updatePreview);
-        
+        document.getElementById('showLines').addEventListener('change', updatePreview);
+        document.getElementById('showSeriesRating').addEventListener('change', updatePreview);
+
         // Initialize preview
         updatePreview();
-        
+
         // Auto-focus on stream name input for better UX
         document.getElementById('streamName').addEventListener('focus', function() {
             this.select();
