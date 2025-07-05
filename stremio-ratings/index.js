@@ -5,6 +5,10 @@ const path = require('path');
 
 // Constants
 const RATINGS_API_URL = process.env.RATINGS_API_URL || 'http://localhost:3001';
+const TMDB_API_KEY = process.env.TMDB_API_KEY || '5fd1aac6c1a9e4f9fd594d187a701881';
+const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+
+
 const DEFAULT_CONFIG = {
     showVotes: true,
     format: 'multiline',
@@ -12,7 +16,8 @@ const DEFAULT_CONFIG = {
     voteFormat: 'comma', 
     ratingFormat: 'withMax',
     showLines: true,
-    showSeriesRating: false
+    showSeriesRating: false,
+    showMpaaRating: false
 };
 
 // Utility Functions
@@ -452,8 +457,6 @@ class Utils {
 // Anime Mapping Service
 class AnimeService {
     // Configuration
-    static TMDB_API_KEY = process.env.TMDB_API_KEY || '5fd1aac6c1a9e4f9fd594d187a701881';
-    static TMDB_BASE_URL = 'https://api.themoviedb.org/3';
     static CACHE = new Map();
     static CACHE_TTL = 60 * 60 * 1000; // 1 hour TTL
     static REQUEST_QUEUE = [];
@@ -766,7 +769,7 @@ class AnimeService {
             console.log(`Found anime titles:`, allTitles);
 
             // 4. Try TMDB first
-            if (this.TMDB_API_KEY && this.TMDB_API_KEY !== 'your_tmdb_api_key_here') {
+            if (TMDB_API_KEY && TMDB_API_KEY !== 'your_tmdb_api_key_here') {
                 const kitsuData = {
                     titles: allTitles,
                     year: attrs.startDate ? new Date(attrs.startDate).getFullYear() : null,
@@ -889,9 +892,9 @@ class AnimeService {
     static async getTMDBExternalIds(mediaType, tmdbId) {
         try {
             const params = new URLSearchParams({
-                api_key: this.TMDB_API_KEY
+                api_key: TMDB_API_KEY
             });
-            const externalUrl = `${this.TMDB_BASE_URL}/${mediaType}/${tmdbId}/external_ids?${params.toString()}`;
+            const externalUrl = `${TMDB_BASE_URL}/${mediaType}/${tmdbId}/external_ids?${params.toString()}`;
             const externalData = await this.makeRateLimitedRequest(externalUrl);
 
             return externalData?.imdb_id || null;
@@ -929,7 +932,7 @@ class AnimeService {
 
     // TMDB search with anime-specific logic
     static async searchTMDBForAnime(kitsuData) {
-        if (!this.TMDB_API_KEY || this.TMDB_API_KEY === 'your_tmdb_api_key_here') {
+        if (!TMDB_API_KEY || TMDB_API_KEY === 'your_tmdb_api_key_here') {
             console.warn(`⚠️ TMDB API key not configured, skipping TMDB search`);
             return null;
         }
@@ -973,7 +976,7 @@ class AnimeService {
     // NEW: Helper method to search a single title
     static async searchTMDBTitle(title, kitsuData, isCleaned = false) {
         const params = new URLSearchParams({
-            api_key: this.TMDB_API_KEY,
+            api_key: TMDB_API_KEY,
             query: title
         });
 
@@ -982,7 +985,7 @@ class AnimeService {
             params.append('year', kitsuData.year);
         }
 
-        const searchUrl = `${this.TMDB_BASE_URL}/search/multi?${params.toString()}`;
+        const searchUrl = `${TMDB_BASE_URL}/search/multi?${params.toString()}`;
         const yearNote = kitsuData.year && !isCleaned ? ` (${kitsuData.year})` : '';
         const cleanedNote = isCleaned ? ' [CLEANED]' : '';
         console.log(`🔍 Searching TMDB for: "${title}"${yearNote}${cleanedNote}`);
@@ -1108,7 +1111,7 @@ class AnimeService {
     // Helper method to search a single title
     static async searchTMDBTitle(title, kitsuData, isCleaned = false) {
         const params = new URLSearchParams({
-            api_key: this.TMDB_API_KEY,
+            api_key: TMDB_API_KEY,
             query: title
         });
 
@@ -1118,7 +1121,7 @@ class AnimeService {
             params.append('year', kitsuData.year);
         }
 
-        const searchUrl = `${this.TMDB_BASE_URL}/search/multi?${params.toString()}`;
+        const searchUrl = `${TMDB_BASE_URL}/search/multi?${params.toString()}`;
         console.log(`🔍 Searching TMDB for: "${title}"${kitsuData.year && !isCleaned ? ` (${kitsuData.year})` : ''}`);
 
         const searchResults = await this.makeRateLimitedRequest(searchUrl);
@@ -1249,7 +1252,7 @@ class AnimeService {
             // Episode count validation for TV series (existing logic)
             if (kitsuData.subtype === 'TV' && item.media_type === 'tv' && kitsuData.episodeCount) {
                 try {
-                    const detailsUrl = `${this.TMDB_BASE_URL}/tv/${item.id}?api_key=${this.TMDB_API_KEY}`;
+                    const detailsUrl = `${TMDB_BASE_URL}/tv/${item.id}?api_key=${TMDB_API_KEY}`;
                     const details = await this.makeRateLimitedRequest(detailsUrl);
 
                     if (details?.number_of_episodes) {
@@ -1305,9 +1308,9 @@ class AnimeService {
     static async getTMDBExternalIds(mediaType, tmdbId) {
         try {
             const params = new URLSearchParams({
-                api_key: this.TMDB_API_KEY
+                api_key: TMDB_API_KEY
             });
-            const externalUrl = `${this.TMDB_BASE_URL}/${mediaType}/${tmdbId}/external_ids?${params.toString()}`;
+            const externalUrl = `${TMDB_BASE_URL}/${mediaType}/${tmdbId}/external_ids?${params.toString()}`;
             const externalData = await this.makeCachedRequest(externalUrl);
 
             return externalData?.imdb_id || null;
@@ -1539,6 +1542,131 @@ class AnimeService {
     }
 }
 
+// MPAA Rating Service
+class MPAARatingService {
+    static CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days TTL
+
+    static async getMPAARating(imdbId) {
+        try {
+            // Check database cache first
+            const cached = await this.getMPAARatingFromDatabase(imdbId);
+            if (cached && Date.now() - cached.updated_at < this.CACHE_TTL) {
+                console.log(`📋 Using cached MPAA rating for ${imdbId}: ${cached.mpaa_rating}`);
+                return cached.mpaa_rating;
+            }
+
+            // Fetch from TMDB
+            const rating = await this.fetchMPAARatingFromTMDB(imdbId);
+            if (rating) {
+                await this.saveMPAARatingToDatabase(imdbId, rating);
+                return rating;
+            }
+
+            return null;
+        } catch (error) {
+            console.error(`Error getting MPAA rating for ${imdbId}:`, error);
+            return null;
+        }
+    }
+
+    static async getMPAARatingFromDatabase(imdbId) {
+        try {
+            const url = `${RATINGS_API_URL}/api/mpaa-rating/${imdbId}`;
+            const response = await Utils.makeRequest(url);
+            return response && !response.error ? response : null;
+        } catch (error) {
+            console.warn(`Failed to get MPAA rating from database:`, error);
+            return null;
+        }
+    }
+
+    static async saveMPAARatingToDatabase(imdbId, rating) {
+        try {
+            const url = `${RATINGS_API_URL}/api/mpaa-rating`;
+            const payload = {
+                imdbId: imdbId,
+                mpaaRating: rating,
+                country: 'US',
+                updatedAt: Date.now()
+            };
+            await AnimeService.makePostRequest(url, payload);
+            console.log(`💾 Saved MPAA rating to database: ${imdbId} → ${rating}`);
+        } catch (error) {
+            console.warn(`Failed to save MPAA rating to database:`, error);
+        }
+    }
+
+    static async fetchMPAARatingFromTMDB(imdbId) {
+        if (!TMDB_API_KEY || TMDB_API_KEY === 'your_tmdb_api_key_here') {
+            console.warn(`⚠️ TMDB API key not configured for MPAA ratings`);
+            return null;
+        }
+
+        try {
+            // Get TMDB ID from IMDb ID
+            const params = new URLSearchParams({
+                api_key: TMDB_API_KEY,
+                external_source: 'imdb_id'
+            });
+
+            const findUrl = `${TMDB_BASE_URL}/find/${imdbId}?${params.toString()}`;
+            const findResponse = await AnimeService.makeRateLimitedRequest(findUrl);
+
+            if (!findResponse) return null;
+
+            // Try movie first, then TV
+            let tmdbId = null;
+            let mediaType = null;
+
+            if (findResponse.movie_results?.length > 0) {
+                tmdbId = findResponse.movie_results[0].id;
+                mediaType = 'movie';
+            } else if (findResponse.tv_results?.length > 0) {
+                tmdbId = findResponse.tv_results[0].id;
+                mediaType = 'tv';
+            }
+
+            if (!tmdbId) {
+                console.log(`No TMDB match found for ${imdbId}`);
+                return null;
+            }
+
+            // Get release info for MPAA rating
+            const releaseParams = new URLSearchParams({ api_key: TMDB_API_KEY });
+            const endpoint = mediaType === 'movie' ? 'release_dates' : 'content_ratings';
+            const releaseUrl = `${TMDB_BASE_URL}/${mediaType}/${tmdbId}/${endpoint}?${releaseParams.toString()}`;
+
+            const releaseResponse = await AnimeService.makeRateLimitedRequest(releaseUrl);
+
+            if (!releaseResponse) return null;
+
+            // Extract US rating
+            const results = releaseResponse.results || [];
+            const usData = results.find(r => r.iso_3166_1 === 'US');
+
+            if (usData) {
+                if (mediaType === 'movie' && usData.release_dates?.length > 0) {
+                    const rating = usData.release_dates[0]?.certification;
+                    if (rating) {
+                        console.log(`🎬 Found MPAA rating for ${imdbId}: ${rating}`);
+                        return rating;
+                    }
+                } else if (mediaType === 'tv' && usData.rating) {
+                    console.log(`📺 Found TV rating for ${imdbId}: ${usData.rating}`);
+                    return usData.rating;
+                }
+            }
+
+            console.log(`No US rating found for ${imdbId}`);
+            return null;
+
+        } catch (error) {
+            console.error(`Error fetching MPAA rating from TMDB for ${imdbId}:`, error);
+            return null;
+        }
+    }
+}
+
 // Rating Service
 class RatingService {
     static async getRating(imdbId) {
@@ -1641,16 +1769,21 @@ class ManifestService {
 
 // Stream Service
 class StreamService {
-    static formatRatingDisplay(ratingData, config, type = 'episode', seriesRating = null) {
+    static formatRatingDisplay(ratingData, config, type = 'episode', seriesRating = null, mpaaRating = null) {
         const { rating, votes } = ratingData;
-        const { showVotes, format, streamName, voteFormat, ratingFormat, showLines, showSeriesRating } = config;
+        const { showVotes, format, streamName, voteFormat, ratingFormat, showLines, showSeriesRating, showMpaaRating } = config;
         const episodeLabel = (showSeriesRating && type === 'episode') ? 'Episode' : 'IMDb';
-
 
         // Format votes and rating according to config
         const formattedVotes = Utils.formatVotes(votes, voteFormat);
         const formattedRating = Utils.formatRating(rating, ratingFormat);
         const votesText = showVotes && formattedVotes ? ` (${formattedVotes} votes)` : '';
+
+        // Format MPAA rating if available and enabled
+        let mpaaRatingText = '';
+        if (showMpaaRating && mpaaRating) {
+            mpaaRatingText = `🔞  MPAA: ${mpaaRating}`;
+        }
 
         // Format series rating if available and enabled
         let seriesRatingForSingleLine = '';
@@ -1670,24 +1803,27 @@ class StreamService {
                 const seriesVotesText = showVotes && formattedSeriesVotes ? ` (${formattedSeriesVotes} votes)` : '';
                 description = `❌  Episode: Rating not available\n📺  Series:  ${formattedSeriesRating}${seriesVotesText}\n❗  Review data is updated daily. Please check back soon!`;
             }
+            if (showMpaaRating && mpaaRating) {
+                description = `${mpaaRatingText}\n${description}`;
+            }
             return { name: streamName, description };
         }
 
         if (type === 'series_fallback') {
             let description = `❌  Episode: Rating not available\n📺  Series:  ${formattedRating} ${votesText}\n❗  Review data is updated daily. Please check back soon!`;
-            if (showSeriesRating && seriesRating) {
-                description = `❌  Episode: Rating not available\n📺  Series:  ${formattedRating} ${votesText}\n❗  Review data is updated daily. Please check back soon!`;
+            if (showMpaaRating && mpaaRating) {
+                description = `${mpaaRatingText}\n${description}`;
             }
             return { name: streamName, description };
         }
 
         // Handle single line format
         if (format === 'singleline') {
-            let description = `⭐  ${episodeLabel}:  ${formattedRating} ${votesText}`;
-            if (seriesRatingForSingleLine) {
-                description += `\n${seriesRatingForSingleLine}`;
-            }
-            return { name: streamName, description };
+            let lines = [];
+            if (mpaaRatingText) lines.push(mpaaRatingText);
+            lines.push(`⭐  ${episodeLabel}:  ${formattedRating} ${votesText}`);
+            if (seriesRatingForSingleLine) lines.push(seriesRatingForSingleLine);
+            return { name: streamName, description: lines.join('\n') };
         }
 
         // Handle multiline format
@@ -1695,7 +1831,12 @@ class StreamService {
         const lines = [];
 
         if (showLines) {
-            lines.push('─'.repeat(ratingLine.length));
+            lines.push('─'.repeat(Math.max(ratingLine.length, mpaaRatingText.length)));
+        }
+
+        // Add MPAA rating first if enabled
+        if (mpaaRatingText) {
+            lines.push(mpaaRatingText);
         }
 
         lines.push(ratingLine);
@@ -1707,26 +1848,22 @@ class StreamService {
         }
 
         // Add series rating line if enabled
-        if (seriesRatingForSingleLine) {
-            // Split series rating and votes for proper alignment
-            if (showSeriesRating && seriesRating && type !== 'movie') {
-                const formattedSeriesRating = Utils.formatRating(seriesRating.rating, ratingFormat);
-                const formattedSeriesVotes = Utils.formatVotes(seriesRating.votes, voteFormat);
+        if (showSeriesRating && seriesRating && type !== 'movie') {
+            const formattedSeriesRating = Utils.formatRating(seriesRating.rating, ratingFormat);
+            const formattedSeriesVotes = Utils.formatVotes(seriesRating.votes, voteFormat);
 
-                const seriesRatingLine = `📺  Series:  ${formattedSeriesRating}`;
-                lines.push(seriesRatingLine);
+            const seriesRatingLine = `📺  Series:  ${formattedSeriesRating}`;
+            lines.push(seriesRatingLine);
 
-                // Add series votes with same alignment as episode votes
-                if (showVotes && formattedSeriesVotes) {
-                    const firstDigitPos = seriesRatingLine.search(/\d/) - 3;
-                    const indent = ' '.repeat(firstDigitPos);
-                    lines.push(`${indent}(${formattedSeriesVotes} votes)`);
-                }
+            if (showVotes && formattedSeriesVotes) {
+                const firstDigitPos = seriesRatingLine.search(/\d/) - 3;
+                const indent = ' '.repeat(firstDigitPos);
+                lines.push(`${indent}(${formattedSeriesVotes} votes)`);
             }
         }
 
         if (showLines) {
-            lines.push('─'.repeat(ratingLine.length));
+            lines.push('─'.repeat(Math.max(ratingLine.length, mpaaRatingText.length)));
         }
 
         return {
@@ -1751,6 +1888,12 @@ class StreamService {
 
     static async handleSeriesStreams(imdbId, season, episode, id, config, seriesRating) {
         console.log(`Processing episode ${season}x${episode} for series ${imdbId}`);
+
+        // Fetch MPAA rating if enabled
+        let mpaaRating = null;
+        if (config.showMpaaRating) {
+            mpaaRating = await MPAARatingService.getMPAARating(imdbId);
+        }
 
         // Try episode-specific rating first
         let ratingData = await RatingService.getEpisodeRating(imdbId, season, episode);
@@ -1812,7 +1955,7 @@ class StreamService {
         if (ratingData) {
             // Explicitly set type for episode ratings
             ratingData.type = 'episode';
-            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type, seriesRating);
+            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type, seriesRating, mpaaRating);
             const stream = this.createStream(displayConfig, imdbId, id, ratingData);
             console.log(`✅ Added episode rating stream: ${ratingData.rating}/10`);
             return [stream];
@@ -1824,7 +1967,7 @@ class StreamService {
 
         if (ratingData) {
             ratingData.type = 'series_fallback';
-            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type, seriesRating);
+            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type, seriesRating, mpaaRating);
             const stream = this.createStream(displayConfig, imdbId, id, ratingData);
             console.log(`✅ Added series fallback rating stream: ${ratingData.rating}/10`);
             return [stream];
@@ -1835,7 +1978,8 @@ class StreamService {
             { rating: 'Not Available', votes: '' },
             config,
             'not_available',
-            seriesRating
+            seriesRating,
+            mpaaRating
         );
 
         const stream = this.createStream(displayConfig, imdbId, id);
@@ -1846,6 +1990,13 @@ class StreamService {
 
     static async handleMovieStreams(id, config) {
         console.log(`Processing movie: ${id}`);
+
+        // Fetch MPAA rating if enabled
+        let mpaaRating = null;
+        if (config.showMpaaRating) {
+            mpaaRating = await MPAARatingService.getMPAARating(id);
+        }
+
 
         // 1️⃣ Try normal movie/series rating first
         let ratingData = await RatingService.getRating(id);
@@ -1858,7 +2009,7 @@ class StreamService {
         }
 
         if (ratingData) {
-            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type || 'movie', null); 
+            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type || 'movie', null, mpaaRating); 
             const stream = this.createStream(displayConfig, id, id, ratingData);
             console.log(`✅ Added ${ratingData.type || 'movie'} rating stream: ${ratingData.rating}/10`);
             return [stream];
@@ -1869,7 +2020,8 @@ class StreamService {
             { rating: 'Not Available', votes: '' },
             config,
             'movie',
-            null   
+            null,
+            mpaaRating   
         );
 
         const stream = this.createStream({

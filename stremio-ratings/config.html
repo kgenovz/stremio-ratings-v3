@@ -357,6 +357,10 @@
         <strong>Welcome!</strong> Configure your IMDb ratings addon below. You can customize how ratings and vote counts are displayed, then install the addon directly to Stremio.
     </div>
 
+    <div class="info-box">
+        <strong>📅 Data Updates:</strong> IMDb rating data is updated daily. Newly released content or recent rating changes may take a few days to appear, depending on vote tallies.
+    </div>
+
     <div class="config">
         <h3>🚀 Quick Install (Default Settings)</h3>
         <div class="url">{{BASE_URL}}/manifest.json</div>
@@ -387,6 +391,14 @@
                     <span>Show series rating on episode streams</span>
                 </label>
                 <div class="option-note">Only applies to TV series episodes, not movies</div>
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="showMpaaRating">
+                    <span>Show MPAA rating (e.g., PG-13, R)</span>
+                </label>
+                <div class="option-note">Displays content rating when available</div>
             </div>
 
             <div class="form-row">
@@ -529,6 +541,9 @@
             if (config.showSeriesRating !== undefined) {
                 document.getElementById('showSeriesRating').checked = config.showSeriesRating;
             }
+            if (config.showMpaaRating !== undefined) {
+                document.getElementById('showMpaaRating').checked = config.showMpaaRating;
+            }
 
             console.log('Loaded config into form');
         }
@@ -567,8 +582,7 @@
             const voteFormat = document.getElementById('voteFormat').value;
             const ratingFormat = document.getElementById('ratingFormat').value;
             const showSeriesRating = document.getElementById('showSeriesRating').checked;
-
-
+            const showMpaaRating = document.getElementById('showMpaaRating').checked;
 
             // Build config object
             const config = {
@@ -578,7 +592,8 @@
                 voteFormat: voteFormat,
                 ratingFormat: ratingFormat,
                 showLines: showLines,
-                showSeriesRating: showSeriesRating
+                showSeriesRating: showSeriesRating,
+                showMpaaRating: showMpaaRating
             };
 
             currentConfig = config;
@@ -586,11 +601,13 @@
             // Generate preview with sample data
             const sampleVotes = 45123;
             const sampleRating = 8.1;
+            const sampleMpaaRating = 'PG-13';
 
             const formattedVotes = formatVotes(sampleVotes, voteFormat);
             const formattedRating = formatRating(sampleRating, ratingFormat);
             const votesText = showVotes ? ` (${formattedVotes} votes)` : '';
             const episodeLabel = (showSeriesRating && format !== 'movie') ? 'Episode' : 'IMDb';
+            const mpaaRatingText = showMpaaRating ? `🔞&ensp;MPAA: ${sampleMpaaRating}` : '';
 
             // Get preview elements
             const previewPC = document.getElementById('previewPC');
@@ -603,23 +620,24 @@
             const seriesVotesText = showVotes ? ` (${formattedSeriesVotes} votes)` : '';
 
             // Create separate series rating lines for different layouts
-            const seriesRatingLineSingle = showSeriesRating ? `📺&ensp;Series:&ensp;${formattedSeriesRating}${seriesVotesText}</div>` : '';
+            const seriesRatingLineSingle = showSeriesRating ? `📺&ensp;Series:&ensp;${formattedSeriesRating}${seriesVotesText}` : '';
             const seriesRatingLineMulti = showSeriesRating ? `📺&ensp;Series:&ensp;${formattedSeriesRating}` : '';
 
             // --- PC Preview Logic ---
             let pcContentHtml;
-            const pcStreamContentDiv = document.createElement('div');
-            pcStreamContentDiv.className = 'stream-content';
 
             // For PC single line:
             if (format === 'singleline') {
-                const secondLine = showSeriesRating ? `<br><div style="text-align: left;">${seriesRatingLineSingle}</div>` : '';
+                let lines = [];
+                if (mpaaRatingText) lines.push(`<div style="text-align: left;">${mpaaRatingText}</div>`);
+                lines.push(`⭐&ensp;${episodeLabel}:&ensp;${formattedRating} ${votesText}`);
+                if (seriesRatingLineSingle) lines.push(`<div style="text-align: left;">${seriesRatingLineSingle}</div>`);
+
                 pcContentHtml = `
         <div class="stream-item">
             <div class="stream-name">${streamName}</div>
-                <div class="stream-content" style="white-space: nowrap; text-align: left;">
-                ⭐&ensp;${episodeLabel}:&ensp;${formattedRating} ${votesText}
-                ${secondLine}
+            <div class="stream-content" style="white-space: nowrap; text-align: left;">
+                ${lines.join('<br>')}
             </div>
         </div>
         `;
@@ -628,40 +646,41 @@
                 pcContentHtml = `
         <div class="stream-item">
             <div class="stream-name">${streamName}</div>
-                <div class="stream-content">
+            <div class="stream-content">
                 ${showLines ? '<div class="top-line"></div>' : ''}
+                ${mpaaRatingText ? `<div class="rating-row"><div>${mpaaRatingText}</div></div>` : ''}
                 <div class="rating-row">
-                <div>⭐&ensp;${episodeLabel}:&ensp;${formattedRating}</div>
-                ${showVotes ? `<div style="margin-left: 1.8em;">(${formattedVotes} votes)</div>` : ''}
+                    <div>⭐&ensp;${episodeLabel}:&ensp;${formattedRating}</div>
+                    ${showVotes ? `<div style="margin-left: 1.8em;">(${formattedVotes} votes)</div>` : ''}
+                </div>
+                ${showSeriesRating ? `
+                <div class="rating-row">
+                    <div>${seriesRatingLineMulti}</div>
+                    ${seriesVotesText ? `<div style="margin-left: 1.8em;">${seriesVotesText}</div>` : ''}
+                </div>
+                ` : ''}
+                ${showLines ? '<div class="bottom-line"></div>' : ''}
             </div>
-
-        ${showSeriesRating ? `
-            <div class="rating-row">
-                <div>${seriesRatingLineMulti}</div>
-                ${seriesVotesText ? `<div style="margin-left: 1.8em;">${seriesVotesText}</div>` : ''}
-            </div>
-        ` : ''}
-        ${showLines ? '<div class="bottom-line"></div>' : ''}
         </div>
-    </div>
-    `;
+        `;
             }
             previewPC.innerHTML = pcContentHtml;
 
             // --- Mobile Preview Logic ---
             let mobileContentHtml;
-            const mobileStreamContentDiv = document.createElement('div');
-            mobileStreamContentDiv.className = 'stream-content-mobile';
 
             // For Mobile single line:
             if (format === 'singleline') {
-                const secondLine = showSeriesRating ? `<br><div style="text-align: left;">${seriesRatingLineSingle}</div>` : '';
+                let lines = [];
+                if (mpaaRatingText) lines.push(`<div style="text-align: left;">${mpaaRatingText}</div>`);
+                lines.push(`⭐&ensp;${episodeLabel}:&ensp;${formattedRating} ${votesText}`);
+                if (seriesRatingLineSingle) lines.push(`<div style="text-align: left;">${seriesRatingLineSingle}</div>`);
+
                 mobileContentHtml = `
 <div class="stream-item-mobile">
     <div class="stream-name-mobile">${streamName}</div>
     <div class="stream-content-mobile" style="white-space: nowrap; text-align: left;">
-        ⭐&ensp;${episodeLabel}:&ensp;${formattedRating} ${votesText}
-        ${secondLine}
+        ${lines.join('')}
     </div>
 </div>
 `;
@@ -672,6 +691,7 @@
     <div class="stream-name-mobile">${streamName}</div>
     <div class="stream-content-mobile multiline-display">
         ${showLines ? '<div class="top-line"></div>' : ''}
+        ${mpaaRatingText ? `<div>${mpaaRatingText}</div>` : ''}
         <div>⭐&ensp;${episodeLabel}:&ensp;${formattedRating}</div>
         ${showVotes ? `<div style="margin-left: 1.8em;">(${formattedVotes} votes)</div>` : ''}
         ${showSeriesRating ? `
@@ -694,7 +714,8 @@
                 voteFormat: 'comma',
                 ratingFormat: 'withMax',
                 showLines: true,
-                showSeriesRating: false
+                showSeriesRating: false,
+                showMpaaRating: false
             };
 
             for (const [key, value] of Object.entries(config)) {
@@ -757,6 +778,7 @@
         document.getElementById('ratingFormat').addEventListener('change', updatePreview);
         document.getElementById('showLines').addEventListener('change', updatePreview);
         document.getElementById('showSeriesRating').addEventListener('change', updatePreview);
+        document.getElementById('showMpaaRating').addEventListener('change', updatePreview);
 
         // Initialize form with URL config on page load
         document.addEventListener('DOMContentLoaded', function () {
