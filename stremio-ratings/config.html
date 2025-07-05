@@ -465,6 +465,74 @@
         const BASE_URL = '{{BASE_URL}}';
         let currentConfig = null;
 
+        function parseConfigFromCurrentUrl() {
+            const pathname = window.location.pathname;
+            console.log('Current pathname:', pathname);
+
+            // Extract config segment from path like: /c_showVotes-true_format-multiline/configure
+            const configMatch = pathname.match(/\/c_([^\/]+)\//);
+
+            if (!configMatch) {
+                console.log('No config found in URL, using defaults');
+                return null;
+            }
+
+            const configStr = configMatch[1];
+            console.log('Found config string:', configStr);
+
+            try {
+                // Parse key-value pairs separated by underscores
+                const pairs = configStr.split('_');
+                const config = {};
+
+                for (const pair of pairs) {
+                    const [key, value] = pair.split('-');
+                    if (key && value !== undefined) {
+                        // Convert string values to appropriate types
+                        if (value === 'true') config[key] = true;
+                        else if (value === 'false') config[key] = false;
+                        else if (!isNaN(value) && value !== '') config[key] = Number(value);
+                        else config[key] = decodeURIComponent(value); // Handle encoded values
+                    }
+                }
+
+                console.log('Parsed config from URL:', config);
+                return config;
+            } catch (e) {
+                console.error('Error parsing config from URL:', e);
+                return null;
+            }
+        }
+
+        function loadConfigIntoForm(config) {
+            if (!config) return;
+
+            // Set form values based on config
+            if (config.showVotes !== undefined) {
+                document.getElementById('showVotes').checked = config.showVotes;
+            }
+            if (config.format !== undefined) {
+                document.getElementById('format').value = config.format;
+            }
+            if (config.streamName !== undefined) {
+                document.getElementById('streamName').value = config.streamName;
+            }
+            if (config.voteFormat !== undefined) {
+                document.getElementById('voteFormat').value = config.voteFormat;
+            }
+            if (config.ratingFormat !== undefined) {
+                document.getElementById('ratingFormat').value = config.ratingFormat;
+            }
+            if (config.showLines !== undefined) {
+                document.getElementById('showLines').checked = config.showLines;
+            }
+            if (config.showSeriesRating !== undefined) {
+                document.getElementById('showSeriesRating').checked = config.showSeriesRating;
+            }
+
+            console.log('Loaded config into form');
+        }
+
         function formatVotes(votes, format) {
             const num = parseInt(votes.toString().replace(/,/g, ''));
             if (isNaN(num)) return votes;
@@ -689,6 +757,18 @@
         document.getElementById('ratingFormat').addEventListener('change', updatePreview);
         document.getElementById('showLines').addEventListener('change', updatePreview);
         document.getElementById('showSeriesRating').addEventListener('change', updatePreview);
+
+        // Initialize form with URL config on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            const urlConfig = parseConfigFromCurrentUrl();
+            loadConfigIntoForm(urlConfig);
+            updatePreview(); // Update preview with loaded config
+        });
+
+        // Also call it immediately in case DOMContentLoaded already fired
+        const urlConfig = parseConfigFromCurrentUrl();
+        loadConfigIntoForm(urlConfig);
+        updatePreview();
 
         // Initialize preview
         updatePreview();
