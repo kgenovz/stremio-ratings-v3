@@ -1625,7 +1625,7 @@ class ManifestService {
             id: 'imdb.ratings.local',
             version: '2.0.0',
             name: 'IMDb Ratings',
-            description: 'Shows IMDb ratings for movies and individual TV episodes',
+            description: 'Shows IMDb ratings for movies and individual TV episodes. Works with anime.',
             resources: ['stream'],
             types: ['movie', 'series'],
             catalogs: [],
@@ -1644,6 +1644,8 @@ class StreamService {
     static formatRatingDisplay(ratingData, config, type = 'episode', seriesRating = null) {
         const { rating, votes } = ratingData;
         const { showVotes, format, streamName, voteFormat, ratingFormat, showLines, showSeriesRating } = config;
+        const episodeLabel = (showSeriesRating && type === 'episode') ? 'Episode' : 'IMDb';
+
 
         // Format votes and rating according to config
         const formattedVotes = Utils.formatVotes(votes, voteFormat);
@@ -1681,7 +1683,7 @@ class StreamService {
 
         // Handle single line format
         if (format === 'singleline') {
-            let description = `⭐  IMDb:  ${formattedRating} ${votesText}`;
+            let description = `⭐  ${episodeLabel}:  ${formattedRating} ${votesText}`;
             if (seriesRatingForSingleLine) {
                 description += `\n${seriesRatingForSingleLine}`;
             }
@@ -1689,7 +1691,7 @@ class StreamService {
         }
 
         // Handle multiline format
-        const ratingLine = `⭐  IMDb:  ${formattedRating}`;
+        const ratingLine = `⭐  ${episodeLabel}:  ${formattedRating}`;
         const lines = [];
 
         if (showLines) {
@@ -1849,14 +1851,14 @@ class StreamService {
         let ratingData = await RatingService.getRating(id);
 
         // 2️⃣ If nothing came back AND the id looks like an IMDb tconst,
-        //    treat it as a TV-episode id (FIX for Cinemeta)
+        //    treat it as a TV-episode id 
         if (!ratingData && /^tt\d+$/.test(id)) {
             console.log(`No movie rating found for ${id}, trying as episode ID...`);
             ratingData = await RatingService.getEpisodeRatingById(id);
         }
 
         if (ratingData) {
-            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type || 'movie', null); // ADD null HERE
+            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type || 'movie', null); 
             const stream = this.createStream(displayConfig, id, id, ratingData);
             console.log(`✅ Added ${ratingData.type || 'movie'} rating stream: ${ratingData.rating}/10`);
             return [stream];
@@ -1866,8 +1868,8 @@ class StreamService {
         const displayConfig = this.formatRatingDisplay(
             { rating: 'Not Available', votes: '' },
             config,
-            'movie', // ADD 'movie' HERE
-            null     // ADD null HERE
+            'movie',
+            null   
         );
 
         const stream = this.createStream({
