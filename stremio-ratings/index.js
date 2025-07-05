@@ -1663,20 +1663,20 @@ class StreamService {
 
         // Handle special cases first (not_available, series_fallback)
         if (type === 'not_available') {
-            let description = '❌  Episode rating not available\n⭐  IMDb Series Rating:  Not Available';
+            let description = '❌  Episode: Rating not available\n❌  Series:  Rating not available\n❗  Review data is updated daily. Please check back soon!';
             if (showSeriesRating && seriesRating) {
                 const formattedSeriesRating = Utils.formatRating(seriesRating.rating, ratingFormat);
                 const formattedSeriesVotes = Utils.formatVotes(seriesRating.votes, voteFormat);
                 const seriesVotesText = showVotes && formattedSeriesVotes ? ` (${formattedSeriesVotes} votes)` : '';
-                description = `❌  Episode rating not available\n📺  Series:  ${formattedSeriesRating}${seriesVotesText}`;
+                description = `❌  Episode: Rating not available\n📺  Series:  ${formattedSeriesRating}${seriesVotesText}\n❗  Review data is updated daily. Please check back soon!`;
             }
             return { name: streamName, description };
         }
 
         if (type === 'series_fallback') {
-            let description = `❌  Episode rating not available\n⭐  IMDb Series Rating:  ${formattedRating} ${votesText}`;
+            let description = `❌  Episode: Rating not available\n📺  Series:  ${formattedRating} ${votesText}\n❗  Review data is updated daily. Please check back soon!`;
             if (showSeriesRating && seriesRating) {
-                description = `❌  Episode rating not available\n📺  Series:  ${formattedRating} ${votesText}`;
+                description = `❌  Episode: Rating not available\n📺  Series:  ${formattedRating} ${votesText}\n❗  Review data is updated daily. Please check back soon!`;
             }
             return { name: streamName, description };
         }
