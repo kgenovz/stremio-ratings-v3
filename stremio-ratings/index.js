@@ -541,43 +541,73 @@ class AnimeService {
             name: 'Attack on Titan - Season 3 Part 2',
             maxEpisodes: 10
         },
-        /*
-        // Attack on Titan Season 4 Part 1 (Episodes 1-16 of Season 4)
-        'AOT_S4P1_KITSU_ID': {
-            imdbId: 'tt2560140',
+
+        // ==== Demon Slayer: Kimetsu no Yaiba - Arcs =====
+
+        // Swordsmith Village Arc
+        '45866': {
+            imdbId: 'tt9335498',
+            season: 3,
+            episodeOffset: 0,
+            name: 'Demon Slayer: Kimetsu no Yaiba - Swordsmith Villiage Arc',
+            maxEpisodes: 11
+        },
+
+        // Season 4
+        '47635': {
+            imdbId: 'tt9335498',
             season: 4,
             episodeOffset: 0,
-            name: 'Attack on Titan - The Final Season Part 1',
-            maxEpisodes: 16
+            name: 'Demon Slayer: Kimetsu no Yaiba - Season 4',
+            maxEpisodes: 8
         },
 
-        // Attack on Titan Season 4 Part 2 (Episodes 17-28 of Season 4)
-        'AOT_S4P2_KITSU_ID': {
-            imdbId: 'tt2560140',
-            season: 4,
-            episodeOffset: 16, // Part 2 Episode 1 = Season 4 Episode 17
-            name: 'Attack on Titan - The Final Season Part 2',
-            maxEpisodes: 12
+        // Entertainment District Arc
+        '44081': {
+            imdbId: 'tt9335498',
+            season: 2,
+            episodeOffset: 7,
+            name: 'Demon Slayer: Kimetsu no Yaiba - Entertainment District Arc',
+            maxEpisodes: 11
         },
 
-        // Attack on Titan Final Chapters Part 1
-        'AOT_FINAL_P1_KITSU_ID': {
-            imdbId: 'tt2560140',
-            season: 4,
-            episodeOffset: 28, // Final Part 1 Episode 1 = Season 4 Episode 29
-            name: 'Attack on Titan - The Final Season Final Chapters Part 1',
-            maxEpisodes: 2
+        // Siblings Bond
+        '44388': {
+            imdbId: 'tt14888860',
+            season: 1,
+            episodeOffset: 0,
+            name: 'Demon Slayer: Kimetsu no Yaiba - Siblings Bond',
+            maxEpisodes: 1
         },
 
-        // Attack on Titan Final Chapters Part 2
-        'AOT_FINAL_P2_KITSU_ID': {
-            imdbId: 'tt2560140',
-            season: 4,
-            episodeOffset: 30, // Final Part 2 Episode 1 = Season 4 Episode 31
-            name: 'Attack on Titan - The Final Season Final Chapters Part 2',
-            maxEpisodes: 4
-        },*/
+        // Mugen Train Arc
+        '45249': {
+            imdbId: 'tt9335498',
+            season: 2,
+            episodeOffset: 0,
+            name: 'Demon Slayer: Kimetsu no Yaiba - Mugen Train Arc',
+            maxEpisodes: 7
+        },
+
+        // Mugen Train Movie
+        '49001': {
+            imdbId: 'tt11032374',
+            season: 2,
+            episodeOffset: 0,
+            name: 'Demon Slayer: Kimetsu no Yaiba - Mugen Train Movie',
+            maxEpisodes: 7
+        },
+
+        // Mugen Train Movie -  Enlgish
+        '42586': {
+            imdbId: 'tt11032374',
+            season: 2,
+            episodeOffset: 0,
+            name: 'Demon Slayer: Kimetsu no Yaiba - Mugen Train Movie',
+            maxEpisodes: 7
+        },
     };
+
 
     // Cached request wrapper
     static async makeCachedRequest(url, options = {}) {
