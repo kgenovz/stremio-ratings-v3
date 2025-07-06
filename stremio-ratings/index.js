@@ -531,7 +531,6 @@ class AnimeService {
         },
 
         // ===== ATTACK ON TITAN =====
-        // Note: Replace these placeholder IDs with actual Kitsu IDs when found
 
         // Attack on Titan Season 3 Part 2 (Episodes 13-22 of Season 3)
         '41982': {
@@ -762,9 +761,9 @@ class AnimeService {
 
             // 1. Check manual mappings first
             if (this.MANUAL_MAPPINGS[kitsuId]) {
-                const imdbId = this.MANUAL_MAPPINGS[kitsuId];
-                console.log(`✅ Using manual mapping: ${kitsuId} → ${imdbId}`);
-                return imdbId;
+                const mapping = this.MANUAL_MAPPINGS[kitsuId]; 
+                console.log(`✅ Using manual mapping: ${kitsuId} → ${mapping.imdbId} (${mapping.name})`);
+                return mapping.imdbId; 
             }
 
             // 2. Check database for existing mapping
