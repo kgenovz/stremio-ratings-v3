@@ -17,7 +17,8 @@ const DEFAULT_CONFIG = {
     ratingFormat: 'withMax',
     showLines: true,
     showSeriesRating: false,
-    showMpaaRating: false
+    showMpaaRating: false,
+    enableForMovies: true
 };
 
 // Utility Functions
@@ -1751,9 +1752,10 @@ class ManifestService {
     static generate(config = DEFAULT_CONFIG) {
         return {
             id: 'imdb.ratings.local',
-            version: '2.0.0',
+            version: '1.0.0',
             name: 'IMDb Ratings',
-            description: 'Shows IMDb ratings for movies and individual TV episodes. Works with anime.',
+            icon: 'https://res.cloudinary.com/dmrjmwaf1/image/upload/v1751826103/ChatGPT_Image_Jul_6_2025_12_14_35_PM_kffgrq_c_crop_w_700_h_700_lar0k3.png',
+            description: 'Shows IMDb ratings for movies and individual TV episodes with a completely configurable format. Works with anime.',
             resources: ['stream'],
             types: ['movie', 'series'],
             catalogs: [],
@@ -2026,7 +2028,7 @@ class StreamService {
 
         const stream = this.createStream({
             name: displayConfig.name,
-            description: displayConfig.description.replace(/⭐.*/, '⭐  IMDb Movie Rating: Not Available')
+            description: displayConfig.description.replace(/⭐.*/, '❌  Movie : Rating not available\n❗  Review data is updated daily. Please check back soon!')
         }, id, id);
 
         console.log('❌ Added "no rating" stream for movie');
@@ -2036,6 +2038,12 @@ class StreamService {
     // getStreams method with anime support
     static async getStreams(type, id, config) {
         console.log(`🎬 StreamService.getStreams called with type="${type}", id="${id}"`);
+
+        // Check if movies are disabled
+        if (type === 'movie' && !config.enableForMovies) {
+            console.log('❌ Movies disabled in config, returning empty streams');
+            return [];
+        }
 
         const parsedId = Utils.parseContentId(id);
         if (!parsedId) {
@@ -2103,12 +2111,14 @@ class StreamService {
         const displayConfig = this.formatRatingDisplay(
             { rating: 'Not Available', votes: '' },
             config,
-            seriesRating
+            'not_available',                        
+            null,                                   
+            null
         );
 
         const stream = this.createStream({
             name: displayConfig.name,
-            description: displayConfig.description.replace(/⭐.*/, '⭐  IMDb Rating: Not Available')
+            description: displayConfig.description.replace(/⭐.*/, '❌  IMDb Rating: Not Available\n❗  Review data is updated daily. Please check back soon!')
         }, imdbId, originalId);
 
         console.log('❌ Added "no rating" stream');

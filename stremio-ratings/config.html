@@ -401,6 +401,14 @@
                 <div class="option-note">Displays content rating when available</div>
             </div>
 
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="enableForMovies" checked>
+                    <span>Show ratings for movies</span>
+                </label>
+                <div class="option-note">Uncheck to only show ratings for TV series episodes</div>
+            </div>
+
             <div class="form-row">
                 <div class="form-group">
                     <label>
@@ -544,6 +552,9 @@
             if (config.showMpaaRating !== undefined) {
                 document.getElementById('showMpaaRating').checked = config.showMpaaRating;
             }
+            if (config.enableForMovies !== undefined) {
+                document.getElementById('enableForMovies').checked = config.enableForMovies;
+            }
 
             console.log('Loaded config into form');
         }
@@ -583,6 +594,7 @@
             const ratingFormat = document.getElementById('ratingFormat').value;
             const showSeriesRating = document.getElementById('showSeriesRating').checked;
             const showMpaaRating = document.getElementById('showMpaaRating').checked;
+            const enableForMovies = document.getElementById('enableForMovies').checked;
 
             // Build config object
             const config = {
@@ -593,7 +605,8 @@
                 ratingFormat: ratingFormat,
                 showLines: showLines,
                 showSeriesRating: showSeriesRating,
-                showMpaaRating: showMpaaRating
+                showMpaaRating: showMpaaRating,
+                enableForMovies: enableForMovies
             };
 
             currentConfig = config;
@@ -715,7 +728,8 @@
                 ratingFormat: 'withMax',
                 showLines: true,
                 showSeriesRating: false,
-                showMpaaRating: false
+                showMpaaRating: false,
+                enableForMovies: true
             };
 
             for (const [key, value] of Object.entries(config)) {
@@ -779,6 +793,7 @@
         document.getElementById('showLines').addEventListener('change', updatePreview);
         document.getElementById('showSeriesRating').addEventListener('change', updatePreview);
         document.getElementById('showMpaaRating').addEventListener('change', updatePreview);
+        document.getElementById('enableForMovies').addEventListener('change', updatePreview);
 
         // Initialize form with URL config on page load
         document.addEventListener('DOMContentLoaded', function () {
