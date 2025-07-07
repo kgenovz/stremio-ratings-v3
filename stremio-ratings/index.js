@@ -1908,6 +1908,7 @@ class StreamService {
             name: displayConfig.name,
             description: displayConfig.description,
             externalUrl: `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/`,
+            url: `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/`,
             behaviorHints: {
                 notWebReady: true,
                 bingeGroup: `ratings-${id}`
