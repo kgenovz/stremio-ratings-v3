@@ -320,6 +320,48 @@
             font-style: italic;
         }
 
+        .tooltip {
+            display: inline-block;
+            margin-left: 5px;
+            width: 16px;
+            height: 16px;
+            background: #7b68ee;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            font-size: 12px;
+            line-height: 16px;
+            cursor: help;
+            position: relative;
+        }
+
+            .tooltip:hover::after {
+                content: attr(title);
+                position: absolute;
+                bottom: 125%;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #333;
+                color: white;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 12px;
+                white-space: nowrap;
+                z-index: 1000;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            }
+
+            .tooltip:hover::before {
+                content: '';
+                position: absolute;
+                bottom: 115%;
+                left: 50%;
+                transform: translateX(-50%);
+                border: 5px solid transparent;
+                border-top-color: #333;
+                z-index: 1000;
+            }
+
         @media (max-width: 600px) {
             body {
                 padding: 15px;
@@ -362,7 +404,7 @@
     </div>
 
     <div class="config">
-        <h3>🚀 Quick Install (Default Settings)</h3>
+        <h3>Quick Install (Default Settings)</h3>
         <div class="url">{{BASE_URL}}/manifest.json</div>
         <button onclick="installDefault()">📱 Install Default Version</button>
         <button class="copy-button" onclick="copyToClipboard('{{BASE_URL}}/manifest.json')">📋 Copy URL</button>
@@ -471,7 +513,15 @@
     </div>
 
     <div class="config">
-        <h3>🔗 Install Custom Version</h3>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="enableTizenFix">
+                <span>Enable TizenOS TV compatibility fix</span>
+                <span class="tooltip" title="Makes ratings viewable on Samsung TizenOS TVs but removes IMDb linking functionality on other clients">ⓘ</span>
+            </label>
+            <div class="option-note">⚠️ Enables viewing on TizenOS TVs but breaks IMDb links on other devices</div>
+        </div>
+        <h3>Install Custom Version</h3>
         <div class="url" id="manifestUrl">Generating URL...</div>
         <button onclick="installCustom()">📱 Install Custom Version</button>
         <button class="copy-button" onclick="copyToClipboard(document.getElementById('manifestUrl').textContent)">📋 Copy URL</button>
@@ -555,6 +605,9 @@
             if (config.enableForMovies !== undefined) {
                 document.getElementById('enableForMovies').checked = config.enableForMovies;
             }
+            if (config.enableTizenFix !== undefined) {
+                document.getElementById('enableTizenFix').checked = config.enableTizenFix;
+            }
 
             console.log('Loaded config into form');
         }
@@ -595,6 +648,7 @@
             const showSeriesRating = document.getElementById('showSeriesRating').checked;
             const showMpaaRating = document.getElementById('showMpaaRating').checked;
             const enableForMovies = document.getElementById('enableForMovies').checked;
+            const enableTizenFix = document.getElementById('enableTizenFix').checked;
 
             // Build config object
             const config = {
@@ -606,7 +660,8 @@
                 showLines: showLines,
                 showSeriesRating: showSeriesRating,
                 showMpaaRating: showMpaaRating,
-                enableForMovies: enableForMovies
+                enableForMovies: enableForMovies,
+                enableTizenFix: enableTizenFix
             };
 
             currentConfig = config;
@@ -729,7 +784,8 @@
                 showLines: true,
                 showSeriesRating: false,
                 showMpaaRating: false,
-                enableForMovies: true
+                enableForMovies: true,
+                enableTizenFix: false
             };
 
             for (const [key, value] of Object.entries(config)) {
@@ -794,6 +850,7 @@
         document.getElementById('showSeriesRating').addEventListener('change', updatePreview);
         document.getElementById('showMpaaRating').addEventListener('change', updatePreview);
         document.getElementById('enableForMovies').addEventListener('change', updatePreview);
+        document.getElementById('enableTizenFix').addEventListener('change', updatePreview);
 
         // Initialize form with URL config on page load
         document.addEventListener('DOMContentLoaded', function () {

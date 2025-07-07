@@ -18,7 +18,8 @@ const DEFAULT_CONFIG = {
     showLines: true,
     showSeriesRating: false,
     showMpaaRating: false,
-    enableForMovies: true
+    enableForMovies: true,
+    enableTizenFix: false
 };
 
 // Utility Functions
@@ -1903,17 +1904,23 @@ class StreamService {
         };
     }
 
-    static createStream(displayConfig, imdbId, id, ratingData = null) {
-        return {
+    static createStream(displayConfig, imdbId, id, ratingData = null, config = {}) {
+        const streamObject = {
             name: displayConfig.name,
             description: displayConfig.description,
             externalUrl: `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/`,
-            url: `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/`,
             behaviorHints: {
                 notWebReady: true,
                 bingeGroup: `ratings-${id}`
             }
         };
+
+        // Only add URL if TizenOS fix is enabled
+        if (config.enableTizenFix) {
+            streamObject.url = `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/`;
+        }
+
+        return streamObject;
     }
 
     static async handleSeriesStreams(imdbId, season, episode, id, config, seriesRating) {
@@ -1928,7 +1935,7 @@ class StreamService {
         // Try episode-specific rating first
         let ratingData = await RatingService.getEpisodeRating(imdbId, season, episode);
 
-        // NEW: Smart fallback for season mismatches (like One Piece)
+        // Smart fallback for season mismatches (like One Piece)
         // If no rating found and not season 1, try hardcoded mapping first
         if (!ratingData && season > 1) {
             console.log(`No rating found for S${season}E${episode}, trying hardcoded mapping...`);
@@ -1986,7 +1993,7 @@ class StreamService {
             // Explicitly set type for episode ratings
             ratingData.type = 'episode';
             const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type, seriesRating, mpaaRating);
-            const stream = this.createStream(displayConfig, imdbId, id, ratingData);
+            const stream = this.createStream(displayConfig, imdbId, id, ratingData, config);
             console.log(`✅ Added episode rating stream: ${ratingData.rating}/10`);
             return [stream];
         }
@@ -1998,7 +2005,7 @@ class StreamService {
         if (ratingData) {
             ratingData.type = 'series_fallback';
             const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type, seriesRating, mpaaRating);
-            const stream = this.createStream(displayConfig, imdbId, id, ratingData);
+            const stream = this.createStream(displayConfig, imdbId, id, ratingData, config);
             console.log(`✅ Added series fallback rating stream: ${ratingData.rating}/10`);
             return [stream];
         }
@@ -2012,7 +2019,7 @@ class StreamService {
             mpaaRating
         );
 
-        const stream = this.createStream(displayConfig, imdbId, id);
+        const stream = this.createStream(displayConfig, imdbId, id, null, config);
 
         console.log('❌ Added "no rating" stream');
         return [stream];
@@ -2040,7 +2047,7 @@ class StreamService {
 
         if (ratingData) {
             const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type || 'movie', null, mpaaRating); 
-            const stream = this.createStream(displayConfig, id, id, ratingData);
+            const stream = this.createStream(displayConfig, id, id, ratingData, config);
             console.log(`✅ Added ${ratingData.type || 'movie'} rating stream: ${ratingData.rating}/10`);
             return [stream];
         }
@@ -2057,7 +2064,7 @@ class StreamService {
         const stream = this.createStream({
             name: displayConfig.name,
             description: displayConfig.description.replace(/⭐.*/, '❌  Movie : Rating not available\n❗  Review data is updated daily. Please check back soon!')
-        }, id, id);
+        }, id, id, null, config); 
 
         console.log('❌ Added "no rating" stream for movie');
         return [stream];
@@ -2147,7 +2154,7 @@ class StreamService {
         const stream = this.createStream({
             name: displayConfig.name,
             description: displayConfig.description.replace(/⭐.*/, '❌  IMDb Rating: Not Available\n❗  Review data is updated daily. Please check back soon!')
-        }, imdbId, originalId);
+        }, imdbId, originalId, null, config);
 
         console.log('❌ Added "no rating" stream');
         return [stream];
