@@ -1737,10 +1737,18 @@ class StreamService {
     }
 
     static createStream(displayConfig, imdbId, id, ratingData = null, config = {}) {
+        // Determine the correct URL based on config
+        let externalUrl = `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/`;
+
+        // If MPAA ratings are shown and parental guide linking is enabled
+        if (config.showMpaaRating && config.linkToParentalGuide) {
+            externalUrl = `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/parentalguide`;
+        }
+
         const streamObject = {
             name: displayConfig.name,
             description: displayConfig.description,
-            externalUrl: `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/`,
+            externalUrl: externalUrl,
             behaviorHints: {
                 notWebReady: true,
                 bingeGroup: `ratings-${id}`
@@ -1749,7 +1757,7 @@ class StreamService {
 
         // Only add URL if TizenOS fix is enabled
         if (config.enableTizenFix) {
-            streamObject.url = `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/`;
+            streamObject.url = externalUrl;
         }
 
         return streamObject;

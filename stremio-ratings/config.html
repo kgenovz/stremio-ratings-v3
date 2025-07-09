@@ -443,6 +443,14 @@
                 <div class="option-note">Displays content rating when available</div>
             </div>
 
+            <div class="form-group" id="parentalGuideOption" style="display: none;">
+                <label>
+                    <input type="checkbox" id="linkToParentalGuide">
+                    <span>Link to IMDb Parental Guide instead of main page</span>
+                </label>
+                <div class="option-note">When enabled, clicking the rating will open the Parents Guide page</div>
+            </div>
+
             <div class="form-group">
                 <label>
                     <input type="checkbox" id="enableForMovies" checked>
@@ -638,6 +646,19 @@
             }
         }
 
+        function toggleParentalGuideOption() {
+            const showMpaaRating = document.getElementById('showMpaaRating').checked;
+            const parentalGuideOption = document.getElementById('parentalGuideOption');
+
+            if (showMpaaRating) {
+                parentalGuideOption.style.display = 'block';
+            } else {
+                parentalGuideOption.style.display = 'none';
+                document.getElementById('linkToParentalGuide').checked = false;
+            }
+            updatePreview();
+        }
+
         function updatePreview() {
             const showVotes = document.getElementById('showVotes').checked;
             const showLines = document.getElementById('showLines').checked;
@@ -649,6 +670,7 @@
             const showMpaaRating = document.getElementById('showMpaaRating').checked;
             const enableForMovies = document.getElementById('enableForMovies').checked;
             const enableTizenFix = document.getElementById('enableTizenFix').checked;
+            const linkToParentalGuide = document.getElementById('linkToParentalGuide').checked;
 
             // Build config object
             const config = {
@@ -661,7 +683,8 @@
                 showSeriesRating: showSeriesRating,
                 showMpaaRating: showMpaaRating,
                 enableForMovies: enableForMovies,
-                enableTizenFix: enableTizenFix
+                enableTizenFix: enableTizenFix,
+                linkToParentalGuide: linkToParentalGuide
             };
 
             currentConfig = config;
@@ -785,7 +808,8 @@
                 showSeriesRating: false,
                 showMpaaRating: false,
                 enableForMovies: true,
-                enableTizenFix: false
+                enableTizenFix: false,
+                linkToParentalGuide: false
             };
 
             for (const [key, value] of Object.entries(config)) {
@@ -851,6 +875,8 @@
         document.getElementById('showMpaaRating').addEventListener('change', updatePreview);
         document.getElementById('enableForMovies').addEventListener('change', updatePreview);
         document.getElementById('enableTizenFix').addEventListener('change', updatePreview);
+        document.getElementById('showMpaaRating').addEventListener('change', toggleParentalGuideOption);
+        document.getElementById('linkToParentalGuide').addEventListener('change', updatePreview);
 
         // Initialize form with URL config on page load
         document.addEventListener('DOMContentLoaded', function () {
