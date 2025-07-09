@@ -71,7 +71,7 @@ class Utils {
         }
     }
 
-    // NEW: Generate config path segment
+    // Generate config path segment
     static generateConfigPath(config) {
         const pairs = [];
 
@@ -149,9 +149,9 @@ class Utils {
             .replace(/^\/(api|stremio)/, '')
             .replace(/\/c_[^\/]+/, ''); // Remove config segment
         return cleaned.startsWith('/') ? cleaned : '/' + cleaned;
-        }
+    }
 
-    // NEW: Vote formatting utility
+    // Vote formatting utility
     static formatVotes(votes, format = 'comma') {
         if (!votes || votes === '0') return '';
 
@@ -172,7 +172,7 @@ class Utils {
         }
     }
 
-    // NEW: Rating formatting utility
+    // Rating formatting utility
     static formatRating(rating, format = 'withMax') {
         if (format === 'simple') {
             return rating.toString();
@@ -181,7 +181,7 @@ class Utils {
         }
     }
 
-    // NEW: Parse content ID for both IMDb and Kitsu formats
+    // Parse content ID for both IMDb and Kitsu formats
     static parseContentId(id) {
         const decodedId = decodeURIComponent(id);
         console.log('Parsing content ID:', decodedId);
@@ -230,30 +230,16 @@ class Utils {
         // Look for season indicators in various formats (ordered by specificity)
         const patterns = [
             // MOST SPECIFIC PATTERNS FIRST (high confidence)
-
-            // "Title Season 3" - explicit season keyword
             /season\s*(\d+)/i,           // "Season 1", "Season 2"
             /\bS(\d+)\b/i,               // "S1", "S2" (word boundaries)
-
-            // "Title Part 3" - part indicators  
             /part\s*(\d+)/i,             // "Part 1", "Part 2"
             /\bP(\d+)\b/i,               // "P1", "P2" 
-
-            // "Title Book 3" - book/chapter indicators
             /book\s*(\d+)/i,             // "Book 1", "Book 2"
             /chapter\s*(\d+)/i,          // "Chapter 1", "Chapter 2"
-
-            // Japanese season indicators
             /第(\d+)期/i,                // "第2期" format (Japanese)
             /(\d+)期目/i,                // "2期目" format
-
-            // Ordinal indicators
             /\s(\d+)(st|nd|rd|th)\s+season/i, // "2nd Season"
             /(\d+)(st|nd|rd|th)\s+series/i,   // "2nd Series"
-
-            // CONTEXTUAL NUMBER PATTERNS (medium confidence)
-
-            // "Title: 3" or "Title - 3" (with separators)
             /[:\-]\s*(\d+)$/,            // "Title: 3", "Title - 3"
         ];
 
@@ -278,7 +264,6 @@ class Utils {
             };
             const seasonNum = romanMap[romanMatch[1].toUpperCase()];
 
-            // ENHANCED: Validate if Roman numeral is likely a season
             if (this.isLikelySeasonRoman(title, romanMatch[1], seasonNum)) {
                 console.log(`✅ Extracted season ${seasonNum} from title: "${title}" (Roman numeral validated)`);
                 return seasonNum;
@@ -292,7 +277,6 @@ class Utils {
         if (genericNumberMatch) {
             const number = parseInt(genericNumberMatch[1]);
 
-            // ENHANCED: Context-aware validation to avoid false positives
             if (this.isLikelySeasonNumber(title, number)) {
                 console.log(`✅ Extracted season ${number} from title: "${title}" (validated as likely season)`);
                 return number;
@@ -305,6 +289,7 @@ class Utils {
         return 1; // Default to season 1 if no season found
     }
 
+    // Fixed: Validate if Roman numeral is likely a season
     static isLikelySeasonRoman(title, romanNumeral, seasonNumber) {
         const titleLower = title.toLowerCase();
         const roman = romanNumeral.toUpperCase();
@@ -362,47 +347,9 @@ class Utils {
 
         console.log(`❌ Roman numeral X rejected (no sequel context, likely identifier)`);
         return false;
-
-
-        // REJECT if number is clearly part of the title (common patterns)
-        const titleNumberPatterns = [
-            /no\.?\s*\d+$/i,          // "Title No. 8", "Title No.8"
-            /number\s*\d+$/i,         // "Title Number 8"
-            /\b\d+$/,                 // Just check if preceded by word boundary
-        ];
-
-        // Check for title-number patterns
-        for (const pattern of titleNumberPatterns) {
-            if (titleLower.match(pattern)) {
-                console.log(`🚫 Number ${number} appears to be part of title (pattern: ${pattern})`);
-                return false;
-            }
-        }
-
-        // ACCEPT if number looks like a reasonable season (2-10 are common sequel seasons)
-        if (number >= 2 && number <= 10) {
-            // Additional check: does the title contain known anime sequel keywords?
-            const sequelKeywords = [
-                'academia', 'hero', 'slayer', 'titan', 'piece', 'ball', 'naruto',
-                'bleach', 'hunter', 'force', 'wars', 'saga', 'chronicle'
-            ];
-
-            const hasSequelKeyword = sequelKeywords.some(keyword =>
-                titleLower.includes(keyword)
-            );
-
-            if (hasSequelKeyword) {
-                console.log(`✅ Number ${number} likely a season (has sequel keyword + reasonable range)`);
-                return true;
-            }
-        }
-
-        // REJECT numbers outside reasonable season range or without context
-        console.log(`❌ Number ${number} rejected (outside reasonable season range or no sequel context)`);
-        return false;
     }
 
-    // NEW: Smart validation to determine if a number is likely a season vs part of title
+    // Smart validation to determine if a number is likely a season vs part of title
     static isLikelySeasonNumber(title, number) {
         const titleLower = title.toLowerCase();
 
@@ -410,7 +357,6 @@ class Utils {
         const titleNumberPatterns = [
             /no\.?\s*\d+$/i,          // "Title No. 8", "Title No.8"
             /number\s*\d+$/i,         // "Title Number 8"
-            /\b\d+$/,                 // Just check if preceded by word boundary
         ];
 
         // Check for title-number patterns
@@ -444,7 +390,7 @@ class Utils {
         return false;
     }
 
-    // for common anime title patterns
+    // Normalize anime titles for better matching
     static normalizeAnimeTitle(title) {
         // Remove common suffixes that might interfere with season detection
         const normalizedTitle = title
@@ -532,8 +478,6 @@ class AnimeService {
         },
 
         // ===== ATTACK ON TITAN =====
-
-        // Attack on Titan Season 3 Part 2 (Episodes 13-22 of Season 3)
         '41982': {
             imdbId: 'tt2560140',
             season: 3,
@@ -542,18 +486,14 @@ class AnimeService {
             maxEpisodes: 10
         },
 
-        // ==== Demon Slayer: Kimetsu no Yaiba - Arcs =====
-
-        // Swordsmith Village Arc
+        // ==== DEMON SLAYER: KIMETSU NO YAIBA - ARCS =====
         '45866': {
             imdbId: 'tt9335498',
             season: 3,
             episodeOffset: 0,
-            name: 'Demon Slayer: Kimetsu no Yaiba - Swordsmith Villiage Arc',
+            name: 'Demon Slayer: Kimetsu no Yaiba - Swordsmith Village Arc',
             maxEpisodes: 11
         },
-
-        // Season 4
         '47635': {
             imdbId: 'tt9335498',
             season: 4,
@@ -561,8 +501,6 @@ class AnimeService {
             name: 'Demon Slayer: Kimetsu no Yaiba - Season 4',
             maxEpisodes: 8
         },
-
-        // Entertainment District Arc
         '44081': {
             imdbId: 'tt9335498',
             season: 2,
@@ -570,8 +508,6 @@ class AnimeService {
             name: 'Demon Slayer: Kimetsu no Yaiba - Entertainment District Arc',
             maxEpisodes: 11
         },
-
-        // Siblings Bond
         '44388': {
             imdbId: 'tt14888860',
             season: 1,
@@ -579,8 +515,6 @@ class AnimeService {
             name: 'Demon Slayer: Kimetsu no Yaiba - Siblings Bond',
             maxEpisodes: 1
         },
-
-        // Mugen Train Arc
         '45249': {
             imdbId: 'tt9335498',
             season: 2,
@@ -588,8 +522,6 @@ class AnimeService {
             name: 'Demon Slayer: Kimetsu no Yaiba - Mugen Train Arc',
             maxEpisodes: 7
         },
-
-        // Mugen Train Movie
         '49001': {
             imdbId: 'tt11032374',
             season: 2,
@@ -597,8 +529,6 @@ class AnimeService {
             name: 'Demon Slayer: Kimetsu no Yaiba - Mugen Train Movie',
             maxEpisodes: 7
         },
-
-        // Mugen Train Movie -  Enlgish
         '42586': {
             imdbId: 'tt11032374',
             season: 2,
@@ -607,7 +537,6 @@ class AnimeService {
             maxEpisodes: 7
         },
     };
-
 
     // Cached request wrapper
     static async makeCachedRequest(url, options = {}) {
@@ -644,14 +573,12 @@ class AnimeService {
         }
     }
 
-
     static async makeRateLimitedRequest(url, options = {}) {
         return new Promise((resolve, reject) => {
             this.REQUEST_QUEUE.push({ url, options, resolve, reject });
             this.processQueue();
         });
     }
-
 
     static async processQueue() {
         if (this.PROCESSING_QUEUE || this.REQUEST_QUEUE.length === 0) {
@@ -682,7 +609,6 @@ class AnimeService {
         this.PROCESSING_QUEUE = false;
     }
 
-
     static async getKitsuMappingFromDatabase(kitsuId) {
         try {
             const url = `${this.RATINGS_API_URL}/api/kitsu-mapping/${kitsuId}`;
@@ -698,7 +624,6 @@ class AnimeService {
             return null;
         }
     }
-
 
     static async saveKitsuMappingToDatabase(kitsuId, imdbId, source = 'api_discovery') {
         try {
@@ -716,7 +641,6 @@ class AnimeService {
             console.warn(`Failed to save Kitsu mapping to database:`, error);
         }
     }
-
 
     static makePostRequest(url, data) {
         return new Promise((resolve, reject) => {
@@ -762,9 +686,9 @@ class AnimeService {
 
             // 1. Check manual mappings first
             if (this.MANUAL_MAPPINGS[kitsuId]) {
-                const mapping = this.MANUAL_MAPPINGS[kitsuId]; 
+                const mapping = this.MANUAL_MAPPINGS[kitsuId];
                 console.log(`✅ Using manual mapping: ${kitsuId} → ${mapping.imdbId} (${mapping.name})`);
-                return mapping.imdbId; 
+                return mapping.imdbId;
             }
 
             // 2. Check database for existing mapping
@@ -776,7 +700,7 @@ class AnimeService {
 
             // 3. Get anime metadata from Kitsu
             const kitsuUrl = `https://kitsu.io/api/edge/anime/${kitsuId}`;
-            const kitsuResponse = await this.makeRateLimitedRequest(kitsuUrl); // CHANGED: was makeCachedRequest
+            const kitsuResponse = await this.makeRateLimitedRequest(kitsuUrl);
 
             if (!kitsuResponse?.data?.attributes) {
                 console.log(`No Kitsu metadata found for ID: ${kitsuId}`);
@@ -819,7 +743,6 @@ class AnimeService {
             // 5. Fallback to IMDb search logic
             console.log(`⚠️ TMDB failed or unavailable, using IMDb fallback...`);
 
-            // IMDb SEARCH LOGIC
             for (const title of allTitles) {
                 const result = await this.searchImdbByTitle(title, {
                     subtype: attrs.subtype,
@@ -832,7 +755,7 @@ class AnimeService {
                     return result;
                 }
 
-                // Your existing title cleaning logic
+                // Title cleaning logic
                 const cleaningPatterns = [
                     /\s+season\s+\d+/gi,
                     /[:\-]\s*season\s*\d+/gi,
@@ -871,7 +794,6 @@ class AnimeService {
         try {
             console.log(`Trying episode title matching via IMDb suggestions for S${season}E${episode}...`);
 
-            // First get the series title from IMDb suggestions
             const seriesData = await this.getSeriesTitleFromImdb(seriesImdbId);
             if (!seriesData) {
                 console.log(`Could not get series title for ${seriesImdbId}`);
@@ -920,22 +842,7 @@ class AnimeService {
         }
     }
 
-    static async getTMDBExternalIds(mediaType, tmdbId) {
-        try {
-            const params = new URLSearchParams({
-                api_key: TMDB_API_KEY
-            });
-            const externalUrl = `${TMDB_BASE_URL}/${mediaType}/${tmdbId}/external_ids?${params.toString()}`;
-            const externalData = await this.makeRateLimitedRequest(externalUrl);
-
-            return externalData?.imdb_id || null;
-        } catch (error) {
-            console.error(`Error getting external IDs for TMDB ${mediaType}/${tmdbId}:`, error);
-            return null;
-        }
-    }
-
-    // Get enhanced metadata from Kitsu
+    // Get metadata from Kitsu
     static async getKitsuMetadata(kitsuId) {
         const kitsuUrl = `https://kitsu.io/api/edge/anime/${kitsuId}`;
         const kitsuResponse = await this.makeCachedRequest(kitsuUrl);
@@ -1004,7 +911,7 @@ class AnimeService {
         return null;
     }
 
-    // NEW: Helper method to search a single title
+    // Helper method to search a single title
     static async searchTMDBTitle(title, kitsuData, isCleaned = false) {
         const params = new URLSearchParams({
             api_key: TMDB_API_KEY,
@@ -1035,7 +942,7 @@ class AnimeService {
 
             for (const candidate of scoredResults) {
                 // LOWERED thresholds to ensure we try cleaned titles
-                const minScore = isCleaned ? 5 : 10; // Much lower thresholds
+                const minScore = isCleaned ? 5 : 10; 
                 console.log(`🎯 Checking candidate "${candidate.title || candidate.name}" - Score: ${candidate.score.toFixed(1)} (min: ${minScore})`);
 
                 if (candidate.score >= minScore) {
@@ -1061,7 +968,7 @@ class AnimeService {
     // Remove season indicators from titles for better matching
     static removeSeasonFromTitle(title) {
         const seasonPatterns = [
-            /\s+\d+$/, // "Title 2", "Title 3" ← REMOVES THE PROBLEMATIC NUMBERS
+            /\s+\d+$/, // "Title 2", "Title 3"
             /\s+season\s+\d+/gi,
             /[:\-]\s*season\s*\d+/gi,
             /[:\-]\s*(part|vol|volume)\s*\d+/gi,
@@ -1137,71 +1044,6 @@ class AnimeService {
 
         return prioritized;
     }
-
-
-    // Helper method to search a single title
-    static async searchTMDBTitle(title, kitsuData, isCleaned = false) {
-        const params = new URLSearchParams({
-            api_key: TMDB_API_KEY,
-            query: title
-        });
-
-        if (kitsuData.year && !isCleaned) {
-            // Only add year for original titles, not cleaned ones
-            // (cleaned titles might match earlier seasons with different years)
-            params.append('year', kitsuData.year);
-        }
-
-        const searchUrl = `${TMDB_BASE_URL}/search/multi?${params.toString()}`;
-        console.log(`🔍 Searching TMDB for: "${title}"${kitsuData.year && !isCleaned ? ` (${kitsuData.year})` : ''}`);
-
-        const searchResults = await this.makeRateLimitedRequest(searchUrl);
-
-        if (searchResults?.results?.length > 0) {
-            const scoredResults = await this.scoreTMDBCandidates(searchResults.results, kitsuData, title, isCleaned);
-
-            for (const candidate of scoredResults) {
-                const minScore = isCleaned ? 10 : 15; // Lower threshold for cleaned titles
-                if (candidate.score >= minScore) {
-                    const imdbId = await this.getTMDBExternalIds(candidate.media_type, candidate.id);
-                    if (imdbId) {
-                        const cleanedNote = isCleaned ? ' (cleaned title)' : '';
-                        console.log(`🎯 TMDB match: "${title}"${cleanedNote} → ${candidate.media_type}/${candidate.id} → ${imdbId} (Score: ${candidate.score})`);
-                        return { imdbId, tmdbId: candidate.id, mediaType: candidate.media_type };
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    // Remove season indicators from titles for better matching
-    static removeSeasonFromTitle(title) {
-        const seasonPatterns = [
-            /\s+\d+$/, // "Title 2", "Title 3" ← REMOVES THE PROBLEMATIC NUMBERS
-            /\s+season\s+\d+/gi,
-            /[:\-]\s*season\s*\d+/gi,
-            /[:\-]\s*(part|vol|volume)\s*\d+/gi,
-            /[:\-]\s*第\d+期/gi,
-            /\s+\d+(st|nd|rd|th)\s+season/gi,
-            /[:\-]\s*(book|chapter)\s*\d+/gi,
-            /\s+(II|III|IV|V|VI|VII|VIII|IX|X)$/i // Roman numerals
-        ];
-
-        let cleanedTitle = title;
-
-        for (const pattern of seasonPatterns) {
-            const newTitle = cleanedTitle.replace(pattern, '').trim();
-            if (newTitle.length > 0 && newTitle !== cleanedTitle) {
-                cleanedTitle = newTitle;
-                break; // Only apply first matching pattern
-            }
-        }
-
-        return cleanedTitle;
-    }
-
 
     // Score TMDB candidates with anime-aware logic + episode count validation
     static async scoreTMDBCandidates(results, kitsuData, searchTitle, isCleaned = false) {
@@ -1280,7 +1122,7 @@ class AnimeService {
                 score += 8;
             }
 
-            // Episode count validation for TV series (existing logic)
+            // Episode count validation for TV series
             if (kitsuData.subtype === 'TV' && item.media_type === 'tv' && kitsuData.episodeCount) {
                 try {
                     const detailsUrl = `${TMDB_BASE_URL}/tv/${item.id}?api_key=${TMDB_API_KEY}`;
@@ -1334,7 +1176,6 @@ class AnimeService {
         return scoredResults.sort((a, b) => b.score - a.score);
     }
 
-
     // Get IMDb ID from TMDB external IDs
     static async getTMDBExternalIds(mediaType, tmdbId) {
         try {
@@ -1342,58 +1183,13 @@ class AnimeService {
                 api_key: TMDB_API_KEY
             });
             const externalUrl = `${TMDB_BASE_URL}/${mediaType}/${tmdbId}/external_ids?${params.toString()}`;
-            const externalData = await this.makeCachedRequest(externalUrl);
+            const externalData = await this.makeRateLimitedRequest(externalUrl);
 
             return externalData?.imdb_id || null;
         } catch (error) {
             console.error(`Error getting external IDs for TMDB ${mediaType}/${tmdbId}:`, error);
             return null;
         }
-    }
-
-    // Generate cleaned title variants
-    static generateCleanedTitles(title) {
-        const cleaningPatterns = [
-            /\s+season\s+\d+$/gi,
-            /[:\-]\s*season\s*\d+/gi,
-            /[:\-]\s*(part|vol|volume)\s*\d+/gi,
-            /[:\-]\s*第\d+期/gi,
-            /\s+\d+(st|nd|rd|th)\s+season/gi,
-            /[:\-]\s*(book|chapter)\s*\d+/gi
-        ];
-
-        const variants = [title];
-
-        for (const pattern of cleaningPatterns) {
-            const cleaned = title.replace(pattern, '').trim();
-            if (cleaned !== title && cleaned.length > 0) {
-                variants.push(cleaned);
-            }
-        }
-
-        return [...new Set(variants)]; // Remove duplicates
-    }
-
-    // Fallback to IMDb search (legacy method, use sparingly)
-    static async searchIMDbFallback(kitsuData) {
-        console.warn(`⚠️ Using IMDb fallback search - this should be rare!`);
-
-        for (const title of kitsuData.titles) {
-            try {
-                const result = await this.searchImdbByTitle(title, {
-                    subtype: kitsuData.subtype,
-                    year: kitsuData.year
-                });
-                if (result) {
-                    return result;
-                }
-            } catch (error) {
-                console.error(`IMDb fallback failed for "${title}":`, error);
-                continue;
-            }
-        }
-
-        return null;
     }
 
     // Legacy IMDb search method (keep for fallback)
@@ -1481,7 +1277,7 @@ class AnimeService {
             const attrs = kitsuResponse.data.attributes;
             const title = attrs.canonicalTitle || attrs.titles?.en || '';
 
-            // ENHANCED: Try multiple title variants for season extraction
+            // Try multiple title variants for season extraction
             const titleVariants = [
                 attrs.canonicalTitle,
                 attrs.titles?.en,
@@ -1512,9 +1308,7 @@ class AnimeService {
         }
     }
 
-
     static getHardcodedSeasonMapping(imdbId, season, episode) {
-
         const SEASON_MAPPINGS = {
             'tt0388629': {
                 episodesPerSeason: [0, 8, 22, 17, 13, 9, 22, 39, 13, 52, 31, 99, 56, 100, 35, 62, 49, 118, 33, 98, 14, 194, 48],
@@ -1540,7 +1334,7 @@ class AnimeService {
     static async processKitsuEpisodeMapping(parsedId) {
         console.log(`🎌 Processing Kitsu episode mapping for ${parsedId.kitsuId}, episode ${parsedId.episode}`);
 
-        // Check for enhanced manual mapping first
+        // Check for manual mapping first
         if (this.MANUAL_MAPPINGS[parsedId.kitsuId]) {
             const mapping = this.MANUAL_MAPPINGS[parsedId.kitsuId];
 
@@ -1573,6 +1367,7 @@ class AnimeService {
     }
 }
 
+
 // MPAA Rating Service
 class MPAARatingService {
     static CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days TTL
@@ -1581,9 +1376,17 @@ class MPAARatingService {
         try {
             // Check database cache first
             const cached = await this.getMPAARatingFromDatabase(imdbId);
-            if (cached && Date.now() - cached.updated_at < this.CACHE_TTL) {
-                console.log(`📋 Using cached MPAA rating for ${imdbId}: ${cached.mpaa_rating}`);
-                return cached.mpaa_rating;
+
+            if (cached && !cached.error) {
+                // Handle both timestamp formats (milliseconds or ISO string)
+                const cachedTime = cached.updated_at || cached.updatedAt;
+                const timestamp = typeof cachedTime === 'string' ? new Date(cachedTime).getTime() : cachedTime;
+
+                if (Date.now() - timestamp < this.CACHE_TTL) {
+                    const rating = cached.mpaa_rating || cached.mpaaRating;
+                    console.log(`📋 Using cached MPAA rating for ${imdbId}: ${rating}`);
+                    return rating;
+                }
             }
 
             // Fetch from TMDB
@@ -1657,10 +1460,7 @@ class MPAARatingService {
                 mediaType = 'tv';
             }
 
-            if (!tmdbId) {
-                console.log(`No TMDB match found for ${imdbId}`);
-                return null;
-            }
+            if (!tmdbId) return null;
 
             // Get release info for MPAA rating
             const releaseParams = new URLSearchParams({ api_key: TMDB_API_KEY });
@@ -1668,23 +1468,47 @@ class MPAARatingService {
             const releaseUrl = `${TMDB_BASE_URL}/${mediaType}/${tmdbId}/${endpoint}?${releaseParams.toString()}`;
 
             const releaseResponse = await AnimeService.makeRateLimitedRequest(releaseUrl);
-
             if (!releaseResponse) return null;
 
-            // Extract US rating
+            // Extract US rating with improved logic
             const results = releaseResponse.results || [];
             const usData = results.find(r => r.iso_3166_1 === 'US');
 
             if (usData) {
                 if (mediaType === 'movie' && usData.release_dates?.length > 0) {
-                    const rating = usData.release_dates[0]?.certification;
-                    if (rating) {
-                        console.log(`🎬 Found MPAA rating for ${imdbId}: ${rating}`);
-                        return rating;
+                    // IMPROVED: Look through ALL release dates, not just the first one
+                    for (const releaseDate of usData.release_dates) {
+                        if (releaseDate.certification && releaseDate.certification.trim() !== '') {
+                            const rating = releaseDate.certification.trim();
+                            console.log(`🎬 Found MPAA rating for ${imdbId}: ${rating}`);
+                            return rating;
+                        }
                     }
                 } else if (mediaType === 'tv' && usData.rating) {
-                    console.log(`📺 Found TV rating for ${imdbId}: ${usData.rating}`);
-                    return usData.rating;
+                    const rating = usData.rating.trim();
+                    console.log(`📺 Found TV rating for ${imdbId}: ${rating}`);
+                    return rating;
+                }
+            }
+
+            // FALLBACK: Try other English-speaking countries if US not found
+            const fallbackCountries = ['GB', 'CA', 'AU', 'NZ'];
+            for (const country of fallbackCountries) {
+                const countryData = results.find(r => r.iso_3166_1 === country);
+                if (countryData) {
+                    if (mediaType === 'movie' && countryData.release_dates?.length > 0) {
+                        for (const releaseDate of countryData.release_dates) {
+                            if (releaseDate.certification && releaseDate.certification.trim() !== '') {
+                                const rating = releaseDate.certification.trim();
+                                console.log(`🌍 Found fallback rating for ${imdbId} from ${country}: ${rating}`);
+                                return rating;
+                            }
+                        }
+                    } else if (mediaType === 'tv' && countryData.rating) {
+                        const rating = countryData.rating.trim();
+                        console.log(`🌍 Found fallback TV rating for ${imdbId} from ${country}: ${rating}`);
+                        return rating;
+                    }
                 }
             }
 
@@ -1750,7 +1574,7 @@ class RatingService {
         }
     }
 
-    // NEW: Get episode rating by episode ID (for Cinemeta fix)
+    // Get episode rating by episode ID
     static async getEpisodeRatingById(episodeId) {
         try {
             const url = `${RATINGS_API_URL}/api/episode/id/${episodeId}`;
@@ -1798,7 +1622,6 @@ class ManifestService {
     }
 }
 
-
 // Stream Service
 class StreamService {
     static formatRatingDisplay(ratingData, config, type = 'episode', seriesRating = null, mpaaRating = null) {
@@ -1828,13 +1651,7 @@ class StreamService {
 
         // Handle special cases first (not_available, series_fallback)
         if (type === 'not_available') {
-            let description = '❌  Episode: Rating not available\n❌  Series:  Rating not available\n❗  Review data is updated daily. Please check back soon!';
-            if (showSeriesRating && seriesRating) {
-                const formattedSeriesRating = Utils.formatRating(seriesRating.rating, ratingFormat);
-                const formattedSeriesVotes = Utils.formatVotes(seriesRating.votes, voteFormat);
-                const seriesVotesText = showVotes && formattedSeriesVotes ? ` (${formattedSeriesVotes} votes)` : '';
-                description = `❌  Episode: Rating not available\n📺  Series:  ${formattedSeriesRating}${seriesVotesText}\n❗  Review data is updated daily. Please check back soon!`;
-            }
+            let description = this._formatNotAvailableMessage('Episode', 'Series', showSeriesRating, seriesRating, ratingFormat, voteFormat, showVotes);
             if (showMpaaRating && mpaaRating) {
                 description = `${mpaaRatingText}\n${description}`;
             }
@@ -1842,7 +1659,7 @@ class StreamService {
         }
 
         if (type === 'series_fallback') {
-            let description = `❌  Episode: Rating not available\n📺  Series:  ${formattedRating} ${votesText}\n❗  Review data is updated daily. Please check back soon!`;
+            let description = `❌  Episode: Rating not available\n📺  Series:  ${formattedRating}${votesText}\n❗  Review data is updated daily. Please check back soon!`;
             if (showMpaaRating && mpaaRating) {
                 description = `${mpaaRatingText}\n${description}`;
             }
@@ -1853,7 +1670,7 @@ class StreamService {
         if (format === 'singleline') {
             let lines = [];
             if (mpaaRatingText) lines.push(mpaaRatingText);
-            lines.push(`⭐  ${episodeLabel}:  ${formattedRating} ${votesText}`);
+            lines.push(`⭐  ${episodeLabel}:  ${formattedRating}${votesText}`);
             if (seriesRatingForSingleLine) lines.push(seriesRatingForSingleLine);
             return { name: streamName, description: lines.join('\n') };
         }
@@ -1904,6 +1721,21 @@ class StreamService {
         };
     }
 
+    // Helper method for consistent "not available" message formatting
+    static _formatNotAvailableMessage(episodeLabel, seriesLabel, showSeriesRating, seriesRating, ratingFormat, voteFormat, showVotes) {
+        let episodeLine = `❌  ${episodeLabel}: Rating not available`;
+        let seriesLine = `❌  ${seriesLabel}:  Rating not available`;
+
+        if (showSeriesRating && seriesRating) {
+            const formattedSeriesRating = Utils.formatRating(seriesRating.rating, ratingFormat);
+            const formattedSeriesVotes = Utils.formatVotes(seriesRating.votes, voteFormat);
+            const seriesVotesText = showVotes && formattedSeriesVotes ? ` (${formattedSeriesVotes} votes)` : '';
+            seriesLine = `📺  ${seriesLabel}:  ${formattedSeriesRating}${seriesVotesText}`;
+        }
+
+        return `${episodeLine}\n${seriesLine}\n❗  Review data is updated daily. Please check back soon!`;
+    }
+
     static createStream(displayConfig, imdbId, id, ratingData = null, config = {}) {
         const streamObject = {
             name: displayConfig.name,
@@ -1923,70 +1755,75 @@ class StreamService {
         return streamObject;
     }
 
+    // Centralized MPAA rating fetching
+    static async _fetchMPAARating(imdbId, config) {
+        if (!config.showMpaaRating) return null;
+        return await MPAARatingService.getMPAARating(imdbId);
+    }
+
+    // Simplified episode rating fallback logic
+    static async _tryEpisodeRatingFallbacks(imdbId, season, episode) {
+        let ratingData = null;
+
+        // Strategy 1: Hardcoded mapping for known problematic series
+        const hardcodedMapping = AnimeService.getHardcodedSeasonMapping(imdbId, season, episode);
+        if (hardcodedMapping) {
+            console.log(`Using hardcoded mapping: S${season}E${episode} → S${hardcodedMapping.season}E${hardcodedMapping.episode}`);
+            ratingData = await RatingService.getEpisodeRating(imdbId, hardcodedMapping.season, hardcodedMapping.episode);
+            if (ratingData) {
+                console.log(`✅ Found rating via hardcoded mapping: ${ratingData.rating}/10`);
+                return ratingData;
+            }
+        }
+
+        // Strategy 2: Static calculation fallback
+        console.log(`Hardcoded mapping failed or doesn't exist, trying static calculation fallback...`);
+        const estimatedAbsoluteEpisode = ((season - 1) * 25) + episode;
+        console.log(`Trying Season 1, Episode ${estimatedAbsoluteEpisode} (estimated from S${season}E${episode})`);
+
+        ratingData = await RatingService.getEpisodeRating(imdbId, 1, estimatedAbsoluteEpisode);
+        if (ratingData) return ratingData;
+
+        // Strategy 3: Try episodes around the estimated one (±2)
+        for (let offset of [-2, -1, 1, 2]) {
+            const tryEpisode = estimatedAbsoluteEpisode + offset;
+            if (tryEpisode > 0) {
+                console.log(`Trying Season 1, Episode ${tryEpisode} (offset ${offset})`);
+                ratingData = await RatingService.getEpisodeRating(imdbId, 1, tryEpisode);
+                if (ratingData) {
+                    console.log(`✅ Found rating with offset ${offset}: Episode ${tryEpisode}`);
+                    return ratingData;
+                }
+            }
+        }
+
+        // Strategy 4: Episode title matching via IMDb search
+        console.log(`All other fallbacks failed, trying episode title matching...`);
+        const episodeId = await AnimeService.findEpisodeByTitle(imdbId, season, episode);
+        if (episodeId) {
+            ratingData = await RatingService.getEpisodeRatingById(episodeId);
+            if (ratingData) {
+                console.log(`✅ Found rating via episode title matching: ${episodeId}`);
+                return ratingData;
+            }
+        }
+
+        return null;
+    }
+
     static async handleSeriesStreams(imdbId, season, episode, id, config, seriesRating) {
         console.log(`Processing episode ${season}x${episode} for series ${imdbId}`);
 
         // Fetch MPAA rating if enabled
-        let mpaaRating = null;
-        if (config.showMpaaRating) {
-            mpaaRating = await MPAARatingService.getMPAARating(imdbId);
-        }
+        const mpaaRating = await this._fetchMPAARating(imdbId, config);
 
         // Try episode-specific rating first
         let ratingData = await RatingService.getEpisodeRating(imdbId, season, episode);
 
         // Smart fallback for season mismatches (like One Piece)
-        // If no rating found and not season 1, try hardcoded mapping first
         if (!ratingData && season > 1) {
-            console.log(`No rating found for S${season}E${episode}, trying hardcoded mapping...`);
-
-            // Try hardcoded mapping for known problematic series
-            const hardcodedMapping = AnimeService.getHardcodedSeasonMapping(imdbId, season, episode);
-            if (hardcodedMapping) {
-                console.log(`Using hardcoded mapping: S${season}E${episode} → S${hardcodedMapping.season}E${hardcodedMapping.episode}`);
-                ratingData = await RatingService.getEpisodeRating(imdbId, hardcodedMapping.season, hardcodedMapping.episode);
-                if (ratingData) {
-                    console.log(`✅ Found rating via hardcoded mapping: ${ratingData.rating}/10`);
-                }
-            }
-
-            // Fallback to static calculation if hardcoded mapping fails or doesn't exist
-            if (!ratingData) {
-                console.log(`Hardcoded mapping failed or doesn't exist, trying static calculation fallback...`);
-
-                // Calculate absolute episode number assuming each season has ~25 episodes
-                const estimatedAbsoluteEpisode = ((season - 1) * 25) + episode;
-                console.log(`Trying Season 1, Episode ${estimatedAbsoluteEpisode} (estimated from S${season}E${episode})`);
-
-                ratingData = await RatingService.getEpisodeRating(imdbId, 1, estimatedAbsoluteEpisode);
-
-                // If that doesn't work, try a few episodes around it (±2)
-                if (!ratingData) {
-                    for (let offset of [-2, -1, 1, 2]) {
-                        const tryEpisode = estimatedAbsoluteEpisode + offset;
-                        if (tryEpisode > 0) {
-                            console.log(`Trying Season 1, Episode ${tryEpisode} (offset ${offset})`);
-                            ratingData = await RatingService.getEpisodeRating(imdbId, 1, tryEpisode);
-                            if (ratingData) {
-                                console.log(`✅ Found rating with offset ${offset}: Episode ${tryEpisode}`);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Final fallback: episode title matching via IMDb search
-            if (!ratingData) {
-                console.log(`All other fallbacks failed, trying episode title matching...`);
-                const episodeId = await AnimeService.findEpisodeByTitle(imdbId, season, episode);
-                if (episodeId) {
-                    ratingData = await RatingService.getEpisodeRatingById(episodeId);
-                    if (ratingData) {
-                        console.log(`✅ Found rating via episode title matching: ${episodeId}`);
-                    }
-                }
-            }
+            console.log(`No rating found for S${season}E${episode}, trying fallback strategies...`);
+            ratingData = await this._tryEpisodeRatingFallbacks(imdbId, season, episode);
         }
 
         if (ratingData) {
@@ -2011,29 +1848,14 @@ class StreamService {
         }
 
         // No rating available at all
-        const displayConfig = this.formatRatingDisplay(
-            { rating: 'Not Available', votes: '' },
-            config,
-            'not_available',
-            seriesRating,
-            mpaaRating
-        );
-
-        const stream = this.createStream(displayConfig, imdbId, id, null, config);
-
-        console.log('❌ Added "no rating" stream');
-        return [stream];
+        return this._createNoRatingStream(config, id, imdbId, 'episode', seriesRating, mpaaRating);
     }
 
     static async handleMovieStreams(id, config) {
         console.log(`Processing movie: ${id}`);
 
         // Fetch MPAA rating if enabled
-        let mpaaRating = null;
-        if (config.showMpaaRating) {
-            mpaaRating = await MPAARatingService.getMPAARating(id);
-        }
-
+        const mpaaRating = await this._fetchMPAARating(id, config);
 
         // 1️⃣ Try normal movie/series rating first
         let ratingData = await RatingService.getRating(id);
@@ -2046,27 +1868,44 @@ class StreamService {
         }
 
         if (ratingData) {
-            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type || 'movie', null, mpaaRating); 
+            const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type || 'movie', null, mpaaRating);
             const stream = this.createStream(displayConfig, id, id, ratingData, config);
             console.log(`✅ Added ${ratingData.type || 'movie'} rating stream: ${ratingData.rating}/10`);
             return [stream];
         }
 
         // No rating available
+        return this._createNoRatingStream(config, id, id, 'movie', null, mpaaRating);
+    }
+
+    // Centralized "no rating" stream creation
+    static _createNoRatingStream(config, originalId, imdbId, contentType = 'episode', seriesRating = null, mpaaRating = null) {
+        const typeLabels = {
+            'episode': { primary: 'Episode', secondary: 'Series' },
+            'movie': { primary: 'Movie', secondary: null },
+            'series': { primary: 'Series', secondary: null }
+        };
+
+        const labels = typeLabels[contentType] || typeLabels['episode'];
+
         const displayConfig = this.formatRatingDisplay(
             { rating: 'Not Available', votes: '' },
             config,
-            'movie',
-            null,
-            mpaaRating   
+            'not_available',
+            seriesRating,
+            mpaaRating
         );
 
-        const stream = this.createStream({
-            name: displayConfig.name,
-            description: displayConfig.description.replace(/⭐.*/, '❌  Movie : Rating not available\n❗  Review data is updated daily. Please check back soon!')
-        }, id, id, null, config); 
+        // Override description for specific content types
+        if (contentType === 'movie') {
+            displayConfig.description = displayConfig.description.replace(
+                /❌  Episode: Rating not available\n❌  Series:  Rating not available/,
+                '❌  Movie: Rating not available'
+            );
+        }
 
-        console.log('❌ Added "no rating" stream for movie');
+        const stream = this.createStream(displayConfig, imdbId, originalId, null, config);
+        console.log(`❌ Added "no rating" stream for ${contentType}`);
         return [stream];
     }
 
@@ -2111,7 +1950,7 @@ class StreamService {
 
                 if (!imdbId) {
                     console.log('❌ Could not map Kitsu ID to IMDb');
-                    return this.createNoRatingStream(config, parsedId.originalId);
+                    return this._createNoRatingStream(config, parsedId.originalId, null, 'episode');
                 }
                 console.log(`✅ Mapped to IMDb ID: ${imdbId}`);
 
@@ -2141,23 +1980,9 @@ class StreamService {
         }
     }
 
-    // Helper method for no rating streams
+    // Legacy method - kept for backward compatibility but simplified
     static createNoRatingStream(config, originalId, imdbId = null) {
-        const displayConfig = this.formatRatingDisplay(
-            { rating: 'Not Available', votes: '' },
-            config,
-            'not_available',                        
-            null,                                   
-            null
-        );
-
-        const stream = this.createStream({
-            name: displayConfig.name,
-            description: displayConfig.description.replace(/⭐.*/, '❌  IMDb Rating: Not Available\n❗  Review data is updated daily. Please check back soon!')
-        }, imdbId, originalId, null, config);
-
-        console.log('❌ Added "no rating" stream');
-        return [stream];
+        return this._createNoRatingStream(config, originalId, imdbId, 'episode');
     }
 }
 

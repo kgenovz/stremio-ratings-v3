@@ -611,9 +611,11 @@ app.get('/api/mpaa-rating/:imdbId', (req, res) => {
         if (result) {
             res.json({
                 imdbId: imdbId,
-                mpaaRating: result.mpaa_rating,
+                mpaaRating: result.mpaa_rating,  
+                mpaa_rating: result.mpaa_rating,   
                 country: result.country,
-                updatedAt: new Date(result.updated_at).toISOString()
+                updatedAt: new Date(result.updated_at).toISOString(),
+                updated_at: result.updated_at 
             });
         } else {
             res.status(404).json({ error: 'MPAA rating not found' });
