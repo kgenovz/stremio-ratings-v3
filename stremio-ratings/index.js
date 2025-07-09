@@ -186,7 +186,7 @@ class Utils {
         const decodedId = decodeURIComponent(id);
         console.log('Parsing content ID:', decodedId);
 
-        // Enhanced Kitsu format: support both simple and three-segment formats
+        // Kitsu format: support both simple and three-segment formats
         const kitsuMatch = decodedId.match(/^kitsu:(?:anime|movie|manga|)?(\d+)(?::(\d+))?$/);
         if (kitsuMatch) {
             const [, kitsuId, episode] = kitsuMatch;
@@ -197,6 +197,23 @@ class Utils {
                 episode: episode ? parseInt(episode) : null,
                 season: episode ? 1 : null, // Will be adjusted based on title later
                 type: episode ? 'series' : 'movie',
+                originalId: decodedId,
+                needsMapping: true
+            };
+        }
+
+        // TMDB format: support both movie and series formats
+        const tmdbMatch = decodedId.match(/^tmdb:(\d+)(?::(\d+):(\d+))?$/);
+        if (tmdbMatch) {
+            const [, tmdbId, season, episode] = tmdbMatch;
+            const isSeries = season && episode;
+            console.log(`Matched TMDB ID: ${tmdbId}, Season: ${season || 'N/A'}, Episode: ${episode || 'N/A'}`);
+            return {
+                platform: 'tmdb',
+                tmdbId: tmdbId,
+                season: isSeries ? parseInt(season) : null,
+                episode: isSeries ? parseInt(episode) : null,
+                type: isSeries ? 'series' : 'movie',
                 originalId: decodedId,
                 needsMapping: true
             };
@@ -1368,6 +1385,239 @@ class AnimeService {
 }
 
 
+// TMDB Service
+class TMDBService {
+    static CACHE = new Map();
+    static CACHE_TTL = 60 * 60 * 1000; // 1 hour TTL
+    static REQUEST_QUEUE = [];
+    static PROCESSING_QUEUE = false;
+    static MAX_CONCURRENT_REQUESTS = 5;
+    static REQUEST_DELAY = 200;
+
+    // Cached request wrapper (reusing AnimeService pattern)
+    static async makeCachedRequest(url, options = {}) {
+        const cacheKey = url;
+        const cached = this.CACHE.get(cacheKey);
+
+        if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+            console.log(`[TMDB CACHE] HIT: ${url}`);
+            return cached.data;
+        }
+
+        console.log(`[TMDB CACHE] MISS: ${url}`);
+
+        try {
+            const response = await Utils.makeRequest(url);
+
+            if (response) {
+                this.CACHE.set(cacheKey, {
+                    data: response,
+                    timestamp: Date.now()
+                });
+
+                // Simple cache cleanup
+                if (this.CACHE.size > 200) {
+                    const oldestKey = this.CACHE.keys().next().value;
+                    this.CACHE.delete(oldestKey);
+                }
+            }
+
+            return response;
+        } catch (error) {
+            console.error(`TMDB request failed for ${url}:`, error);
+            return null;
+        }
+    }
+
+    static async makeRateLimitedRequest(url, options = {}) {
+        return new Promise((resolve, reject) => {
+            this.REQUEST_QUEUE.push({ url, options, resolve, reject });
+            this.processQueue();
+        });
+    }
+
+    static async processQueue() {
+        if (this.PROCESSING_QUEUE || this.REQUEST_QUEUE.length === 0) {
+            return;
+        }
+
+        this.PROCESSING_QUEUE = true;
+
+        while (this.REQUEST_QUEUE.length > 0) {
+            const batch = this.REQUEST_QUEUE.splice(0, this.MAX_CONCURRENT_REQUESTS);
+
+            const promises = batch.map(async ({ url, options, resolve, reject }) => {
+                try {
+                    const result = await this.makeCachedRequest(url, options);
+                    resolve(result);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+
+            await Promise.all(promises);
+
+            if (this.REQUEST_QUEUE.length > 0) {
+                await new Promise(resolve => setTimeout(resolve, this.REQUEST_DELAY));
+            }
+        }
+
+        this.PROCESSING_QUEUE = false;
+    }
+
+    // Main method: Get IMDb ID from TMDB ID
+    static async getImdbFromTMDB(tmdbId, mediaType = 'auto') {
+        if (!TMDB_API_KEY || TMDB_API_KEY === 'your_tmdb_api_key_here') {
+            console.warn(`⚠️ TMDB API key not configured, cannot map TMDB ID ${tmdbId}`);
+            return null;
+        }
+
+        try {
+            console.log(`🎬 Mapping TMDB ID ${tmdbId} to IMDb (mediaType: ${mediaType})...`);
+
+            let finalMediaType = mediaType;
+
+            // Auto-detect media type if not specified
+            if (mediaType === 'auto') {
+                finalMediaType = await this.determineTMDBMediaType(tmdbId);
+                if (!finalMediaType) {
+                    console.log(`❌ Could not determine media type for TMDB ID ${tmdbId}`);
+                    return null;
+                }
+                console.log(`🔍 Auto-detected media type: ${finalMediaType}`);
+            }
+
+            // Get external IDs from TMDB
+            const imdbId = await this.getExternalIds(finalMediaType, tmdbId);
+
+            if (imdbId) {
+                console.log(`✅ Successfully mapped TMDB ${tmdbId} → IMDb ${imdbId}`);
+                return imdbId;
+            } else {
+                console.log(`❌ No IMDb ID found for TMDB ${finalMediaType}/${tmdbId}`);
+                return null;
+            }
+
+        } catch (error) {
+            console.error(`Error mapping TMDB ID ${tmdbId}:`, error);
+            return null;
+        }
+    }
+
+    // Determine if TMDB ID is a movie or TV show
+    static async determineTMDBMediaType(tmdbId) {
+        try {
+            // Try movie endpoint first (usually faster response)
+            const movieParams = new URLSearchParams({ api_key: TMDB_API_KEY });
+            const movieUrl = `${TMDB_BASE_URL}/movie/${tmdbId}?${movieParams.toString()}`;
+
+            console.log(`🎞️ Checking if TMDB ${tmdbId} is a movie...`);
+            const movieResponse = await this.makeRateLimitedRequest(movieUrl);
+
+            if (movieResponse && !movieResponse.status_code) {
+                console.log(`✅ TMDB ${tmdbId} is a movie: "${movieResponse.title}"`);
+                return 'movie';
+            }
+
+            // Try TV endpoint
+            const tvParams = new URLSearchParams({ api_key: TMDB_API_KEY });
+            const tvUrl = `${TMDB_BASE_URL}/tv/${tmdbId}?${tvParams.toString()}`;
+
+            console.log(`📺 Checking if TMDB ${tmdbId} is a TV show...`);
+            const tvResponse = await this.makeRateLimitedRequest(tvUrl);
+
+            if (tvResponse && !tvResponse.status_code) {
+                console.log(`✅ TMDB ${tmdbId} is a TV show: "${tvResponse.name}"`);
+                return 'tv';
+            }
+
+            console.log(`❌ TMDB ${tmdbId} not found in either movie or TV databases`);
+            return null;
+
+        } catch (error) {
+            console.error(`Error determining media type for TMDB ${tmdbId}:`, error);
+            return null;
+        }
+    }
+
+    // Get IMDb ID from TMDB external IDs endpoint
+    static async getExternalIds(mediaType, tmdbId) {
+        try {
+            const params = new URLSearchParams({ api_key: TMDB_API_KEY });
+            const externalUrl = `${TMDB_BASE_URL}/${mediaType}/${tmdbId}/external_ids?${params.toString()}`;
+
+            console.log(`🔍 Fetching external IDs for TMDB ${mediaType}/${tmdbId}...`);
+            const externalData = await this.makeRateLimitedRequest(externalUrl);
+
+            if (externalData?.imdb_id) {
+                console.log(`✅ Found IMDb ID: ${externalData.imdb_id}`);
+                return externalData.imdb_id;
+            } else {
+                console.log(`❌ No IMDb ID found in external IDs for TMDB ${mediaType}/${tmdbId}`);
+
+                // Log available external IDs for debugging
+                if (externalData) {
+                    const availableIds = Object.entries(externalData)
+                        .filter(([key, value]) => value && key !== 'id')
+                        .map(([key, value]) => `${key}: ${value}`)
+                        .join(', ');
+
+                    if (availableIds) {
+                        console.log(`📋 Available external IDs: ${availableIds}`);
+                    }
+                }
+
+                return null;
+            }
+
+        } catch (error) {
+            console.error(`Error getting external IDs for TMDB ${mediaType}/${tmdbId}:`, error);
+            return null;
+        }
+    }
+
+    // Helper method to get TMDB content details (for debugging/logging)
+    static async getTMDBDetails(mediaType, tmdbId) {
+        try {
+            const params = new URLSearchParams({ api_key: TMDB_API_KEY });
+            const detailsUrl = `${TMDB_BASE_URL}/${mediaType}/${tmdbId}?${params.toString()}`;
+
+            const details = await this.makeRateLimitedRequest(detailsUrl);
+
+            if (details && !details.status_code) {
+                return {
+                    title: details.title || details.name,
+                    releaseDate: details.release_date || details.first_air_date,
+                    overview: details.overview
+                };
+            }
+
+            return null;
+        } catch (error) {
+            console.error(`Error getting TMDB details for ${mediaType}/${tmdbId}:`, error);
+            return null;
+        }
+    }
+
+    // Validate TMDB API key
+    static async validateAPIKey() {
+        if (!TMDB_API_KEY || TMDB_API_KEY === 'your_tmdb_api_key_here') {
+            return false;
+        }
+
+        try {
+            const params = new URLSearchParams({ api_key: TMDB_API_KEY });
+            const testUrl = `${TMDB_BASE_URL}/configuration?${params.toString()}`;
+
+            const response = await this.makeCachedRequest(testUrl);
+            return response && !response.status_code;
+        } catch (error) {
+            console.error('TMDB API key validation failed:', error);
+            return false;
+        }
+    }
+}
+
 // MPAA Rating Service
 class MPAARatingService {
     static CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days TTL
@@ -1613,7 +1863,7 @@ class ManifestService {
             resources: ['stream'],
             types: ['movie', 'series'],
             catalogs: [],
-            idPrefixes: ['tt', 'kitsu'],
+            idPrefixes: ['tt', 'kitsu', 'tmdb'],
             behaviorHints: {
                 configurable: true,
                 configurationRequired: false
@@ -1946,7 +2196,6 @@ class StreamService {
             // Handle Kitsu content
             if (parsedId.platform === 'kitsu') {
                 console.log(`🎌 Processing Kitsu content: ${parsedId.kitsuId}`);
-
                 if (parsedId.episode) {
                     // Use enhanced episode mapping - this handles EVERYTHING
                     imdbId = await AnimeService.processKitsuEpisodeMapping(parsedId);
@@ -1955,12 +2204,27 @@ class StreamService {
                 } else {
                     imdbId = await AnimeService.getImdbFromKitsu(parsedId.kitsuId);
                 }
-
                 if (!imdbId) {
                     console.log('❌ Could not map Kitsu ID to IMDb');
                     return this._createNoRatingStream(config, parsedId.originalId, null, 'episode');
                 }
                 console.log(`✅ Mapped to IMDb ID: ${imdbId}`);
+
+                // ADD TMDB HANDLING HERE:
+            } else if (parsedId.platform === 'tmdb') {
+                console.log(`🎬 Processing TMDB content: ${parsedId.tmdbId}`);
+
+                // Determine if it's a movie or TV show
+                const mediaType = parsedId.type === 'series' ? 'tv' :
+                    parsedId.type === 'movie' ? 'movie' : 'auto';
+
+                imdbId = await TMDBService.getImdbFromTMDB(parsedId.tmdbId, mediaType);
+
+                if (!imdbId) {
+                    console.log('❌ Could not map TMDB ID to IMDb');
+                    return this._createNoRatingStream(config, parsedId.originalId, null, parsedId.type);
+                }
+                console.log(`✅ Mapped TMDB ${parsedId.tmdbId} to IMDb ID: ${imdbId}`);
 
             } else {
                 console.log(`🎬 Processing IMDb content: ${parsedId.imdbId}`);
