@@ -10,6 +10,15 @@ const Database = require('better-sqlite3');
 const app = express();
 const port = process.env.PORT || 3001;
 
+// Parse cron schedule from environment variable, default to 2 AM daily
+const UPDATE_CRON_SCHEDULE = process.env.UPDATE_CRON_SCHEDULE || '0 2 * * *';
+
+// Validate cron schedule format
+if (!UPDATE_CRON_SCHEDULE.match(/^(\S+\s+){4}\S+$/)) {
+    console.warn('Invalid cron schedule format, using default: 0 2 * * *');
+    UPDATE_CRON_SCHEDULE = '0 2 * * *';
+}
+
 // Add JSON body parser for new endpoints
 app.use(express.json());
 
@@ -777,6 +786,7 @@ app.get('/', (req, res) => {
     res.json({
         service: 'Enhanced IMDb Ratings API with Caching',
         status: 'active',
+        cronSchedule: UPDATE_CRON_SCHEDULE,
         lastUpdated: lastUpdated ? lastUpdated.toISOString() : null,
         data: {
             ratings: ratingsCount.toLocaleString(),
@@ -843,7 +853,8 @@ cron.schedule('0 */6 * * *', () => {
 
 // Initialize the server
 app.listen(port, async () => {
-    console.log(`🚀 Enhanced IMDb Ratings API running on http://localhost:${port}`);
+    console.log(`IMDb Ratings API running on http://localhost:${port}`);
+    console.log(`Scheduled updates: ${UPDATE_CRON_SCHEDULE}`);
     console.log(`📊 Status: http://localhost:${port}/`);
     console.log(`📈 Stats: http://localhost:${port}/api/stats/cache`);
     console.log('');
@@ -887,7 +898,7 @@ app.listen(port, async () => {
     }
 
     // Schedule daily updates at 2 AM
-    cron.schedule('0 2 * * *', async () => {
+    cron.schedule(UPDATE_CRON_SCHEDULE, async () => {
         console.log('Running scheduled update of optimized IMDb datasets');
         await downloadAndProcessAllData();
     });
