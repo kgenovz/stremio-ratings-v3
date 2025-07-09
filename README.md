@@ -11,9 +11,18 @@ Set these in your hosting platform's environment variables section:
 # REQUIRED - Get free API key from themoviedb.org
 TMDB_API_KEY=your_tmdb_api_key_here
 
-# OPTIONAL - Custom ports (platform will auto-assign if not set)
+# Optional - Custom ports (platform will auto-assign if not set)
 PORT=8080
 API_PORT=3001
+
+# Optional: Set the Node.js environment (production or development)
+NODE_ENV=production
+
+# Optional: Customize the automatic database update schedule
+# Defaults to '0 2 * * *' (2:00 AM daily) -- See further down for more information regarding scheduling
+UPDATE_CRON_SCHEDULE='0 2 * * *'
+
+```
 
 Note: This is a single Docker Compose application that runs both the Stremio addon and ratings API together.
 
@@ -88,7 +97,7 @@ Other Docker-compatible platforms
 
 Quick Start
 
-Bash
+```bash
 
 # Clone the repository
 git clone <your-repo-url>
@@ -105,6 +114,7 @@ docker-compose up -d
 
 # Check status
 docker-compose ps
+```
 
 Services
 
@@ -114,13 +124,14 @@ Services
 
     Configuration Page: http://localhost:8080/configure
 
+
 ⚙️ Environment Variables
 
 Required Variables
 
 Create a .env file in the project root:
-Bash
 
+```bash
 # TMDB API Key (REQUIRED for anime support and MPAA ratings)
 TMDB_API_KEY=your_tmdb_api_key_here
 
@@ -139,6 +150,8 @@ NODE_ENV=production
 # Defaults to '0 2 * * *' (2:00 AM daily)
 UPDATE_CRON_SCHEDULE='0 2 * * *'
 
+```
+
 Getting TMDB API Key
 
     Create a free account at TMDB
@@ -155,7 +168,7 @@ Environment Files by Service
 
 Stremio Addon (.env)
 
-Bash
+```bash
 
 RATINGS_API_URL=http://localhost:3001
 PORT=8080
@@ -163,12 +176,15 @@ TMDB_API_KEY=your_key_here
 
 Ratings API (.env)
 
-Bash
+```
+```bash
 
 PORT=3001
 TMDB_API_KEY=your_key_here
 NODE_ENV=production
 UPDATE_CRON_SCHEDULE='0 2 * * *'
+
+```
 
 🛠️ Manual Installation
 
@@ -185,9 +201,10 @@ Prerequisites
 Setup
 
     Clone and Install
-    Bash
 
-git clone <your-repo-url>
+```bash
+
+git clone <this-repo-url> !!! change
 cd imdb-ratings-stremio
 
 # Create environment file
@@ -207,14 +224,15 @@ Bash
 
 cd imdb-ratings-api
 npm start
-
+```
 First Run: The API will automatically download and process IMDb datasets (~400MB download, 15-20 minutes)
 
 Start the Stremio Addon
-Bash
+```bash
 
     cd stremio-ratings
     npm start
+```
 
 📱 Adding to Stremio
 
@@ -238,7 +256,7 @@ Method 2: Manual Installation
 
 The addon supports extensive customization:
 JSON
-
+```bash
 {
   "showVotes": true,          // Show vote counts
   "format": "multiline",      // "multiline" or "singleline"  
@@ -250,6 +268,7 @@ JSON
   "showMpaaRating": false,    // Show MPAA content ratings (requires TMDB key)
   "enableForMovies": true     // Enable ratings for movies
 }
+```
 
 Example Configurations
 
@@ -261,12 +280,6 @@ Full Featured ```
 http://localhost:8080/c_showSeriesRating-true_showMpaaRating-true_voteFormat-rounded/manifest.json
 
 
-**Anime Focused**
-
-http://localhost:8080/c_showSeriesRating-true_format-multiline/manifest.json
-
-
----
 ## 🎌 Anime Support
 
 This addon includes advanced anime support with:
@@ -351,6 +364,8 @@ curl http://localhost:8080/stream/series/kitsu:7936:5
 # Check TMDB functionality
 curl "http://localhost:3001/api/rating/tt0417299"
 
+```
+
 🐛 Troubleshooting
 
 Common Issues
@@ -397,7 +412,7 @@ MPAA ratings not showing
 
 Health Checks
 
-Bash
+```bash
 
 # Check API health
 curl http://localhost:3001/health
@@ -411,13 +426,14 @@ curl http://localhost:3001/api/rating/tt0111161
 # Check cache statistics
 curl http://localhost:3001/api/stats/cache
 
+```
 Debug Mode
 
 Set environment variable for verbose logging:
-Bash
+```bash
 
 NODE_ENV=development
-
+```
 📈 Performance & Optimization
 
 Database Optimizations
@@ -463,7 +479,8 @@ The ratings API automatically downloads fresh IMDb data on a schedule. By defaul
 Manual Updates
 
 To force an immediate data refresh, you can restart the API service.
-Bash
+
+```bash
 
 # Docker
 docker-compose restart ratings-api
@@ -486,7 +503,7 @@ if (!UPDATE_CRON_SCHEDULE.match(/^(\S+\s+){4}\S+$/)) {
     console.warn('Invalid cron schedule format, using default: 0 2 * * *');
     UPDATE_CRON_SCHEDULE = '0 2 * * *';
 }
-
+```
 Cron Format
 
 The format is a sequence of five fields separated by spaces, representing a time schedule.
@@ -521,7 +538,7 @@ Cron Schedule Examples
 
 Docker Production
 
-Bash
+```bash
 
 # Production build
 docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
@@ -547,29 +564,29 @@ docker-compose up -d
 
 # Setup reverse proxy (nginx/caddy)
 # Point your domain to port 8080
-
+```
 Environment-Specific Configs
 
 Development
-Bash
+```bash
 
 NODE_ENV=development
 RATINGS_API_URL=http://localhost:3001
 PORT=8080
-
+```
 Production
-Bash
+```bash
 
 NODE_ENV=production  
 RATINGS_API_URL=[https://your-api-domain.com](https://your-api-domain.com)
 PORT=8080
-
+```
 Docker Internal
-Bash
+```bash
 
 # Within docker-compose, services can reach each other by name
 RATINGS_API_URL=http://ratings-api:3001 
-
+```
 💡 Support
 
     Issues: Use GitHub Issues for bug reports and feature requests
