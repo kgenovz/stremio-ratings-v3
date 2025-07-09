@@ -1858,7 +1858,7 @@ class ManifestService {
             id: 'imdb.ratings.local',
             version: '1.0.0',
             name: 'IMDb Ratings',
-            icon: 'https://res.cloudinary.com/dmrjmwaf1/image/upload/v1751826103/ChatGPT_Image_Jul_6_2025_12_14_35_PM_kffgrq_c_crop_w_700_h_700_lar0k3.png',
+            logo: 'https://res.cloudinary.com/dmrjmwaf1/image/upload/v1751826103/ChatGPT_Image_Jul_6_2025_12_14_35_PM_kffgrq_c_crop_w_700_h_700_lar0k3.png',
             description: 'Shows IMDb ratings for movies and individual TV episodes with a completely configurable format. Works with anime.',
             resources: ['stream'],
             types: ['movie', 'series'],
@@ -1986,13 +1986,34 @@ class StreamService {
         return `${episodeLine}\n${seriesLine}\n❗  Review data is updated daily. Please check back soon!`;
     }
 
-    static createStream(displayConfig, imdbId, id, ratingData = null, config = {}) {
-        // Determine the correct URL based on config
-        let externalUrl = `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/`;
+    static createStream(displayConfig, imdbId, id, ratingData = null, config = {}, episodeInfo = null) {
+        // Determine the correct URL based on config and episode info
+        let externalUrl;
 
-        // If MPAA ratings are shown and parental guide linking is enabled
-        if (config.showMpaaRating && config.linkToParentalGuide) {
-            externalUrl = `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/parentalguide`;
+        if (episodeInfo && episodeInfo.season && episodeInfo.episode) {
+            // If we have a specific episode ID from rating data, use that
+            if (ratingData?.episodeId) {
+                externalUrl = `https://www.imdb.com/title/${ratingData.episodeId}/`;
+                console.log(`🔗 Using specific episode ID for URL: ${ratingData.episodeId}`);
+            } else {
+                // Fallback to episode list if no specific episode ID
+                externalUrl = `https://www.imdb.com/title/${imdbId}/episodes/?season=${episodeInfo.season}#episode-${episodeInfo.episode}`;
+                console.log(`🔗 No episode ID found, using episode list URL`);
+            }
+
+            // MPAA parental guide override
+            if (config.showMpaaRating && config.linkToParentalGuide) {
+                externalUrl = `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/parentalguide`;
+            }
+
+            console.log(`🔗 Final URL: ${externalUrl}`);
+        } else {
+            // Logic for movies/series without episode info
+            externalUrl = `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/`;
+
+            if (config.showMpaaRating && config.linkToParentalGuide) {
+                externalUrl = `https://www.imdb.com/title/${ratingData?.episodeId || imdbId}/parentalguide`;
+            }
         }
 
         const streamObject = {
@@ -2088,7 +2109,8 @@ class StreamService {
             // Explicitly set type for episode ratings
             ratingData.type = 'episode';
             const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type, seriesRating, mpaaRating);
-            const stream = this.createStream(displayConfig, imdbId, id, ratingData, config);
+            const episodeInfo = { season: season, episode: episode };
+            const stream = this.createStream(displayConfig, imdbId, id, ratingData, config, episodeInfo);
             console.log(`✅ Added episode rating stream: ${ratingData.rating}/10`);
             return [stream];
         }
@@ -2100,7 +2122,8 @@ class StreamService {
         if (ratingData) {
             ratingData.type = 'series_fallback';
             const displayConfig = this.formatRatingDisplay(ratingData, config, ratingData.type, seriesRating, mpaaRating);
-            const stream = this.createStream(displayConfig, imdbId, id, ratingData, config);
+            const episodeInfo = { season: season, episode: episode };
+            const stream = this.createStream(displayConfig, imdbId, id, ratingData, config, episodeInfo);
             console.log(`✅ Added series fallback rating stream: ${ratingData.rating}/10`);
             return [stream];
         }
@@ -2133,11 +2156,12 @@ class StreamService {
         }
 
         // No rating available
-        return this._createNoRatingStream(config, id, id, 'movie', null, mpaaRating);
+        const episodeInfo = { season: season, episode: episode };
+        return this._createNoRatingStream(config, id, imdbId, 'episode', seriesRating, mpaaRating, episodeInfo);
     }
 
     // Centralized "no rating" stream creation
-    static _createNoRatingStream(config, originalId, imdbId, contentType = 'episode', seriesRating = null, mpaaRating = null) {
+    static _createNoRatingStream(config, originalId, imdbId, contentType = 'episode', seriesRating = null, mpaaRating = null, episodeInfo = null) {
         const typeLabels = {
             'episode': { primary: 'Episode', secondary: 'Series' },
             'movie': { primary: 'Movie', secondary: null },
@@ -2162,7 +2186,7 @@ class StreamService {
             );
         }
 
-        const stream = this.createStream(displayConfig, imdbId, originalId, null, config);
+        const stream = this.createStream(displayConfig, imdbId, originalId, null, config, episodeInfo);
         console.log(`❌ Added "no rating" stream for ${contentType}`);
         return [stream];
     }
