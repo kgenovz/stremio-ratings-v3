@@ -2129,7 +2129,8 @@ class StreamService {
         }
 
         // No rating available at all
-        return this._createNoRatingStream(config, id, imdbId, 'episode', seriesRating, mpaaRating);
+        const episodeInfo = { season: season, episode: episode };
+        return this._createNoRatingStream(config, id, imdbId, 'episode', seriesRating, mpaaRating, episodeInfo);
     }
 
     static async handleMovieStreams(id, config) {
@@ -2156,8 +2157,7 @@ class StreamService {
         }
 
         // No rating available
-        const episodeInfo = { season: season, episode: episode };
-        return this._createNoRatingStream(config, id, imdbId, 'episode', seriesRating, mpaaRating, episodeInfo);
+        return this._createNoRatingStream(config, id, id, 'movie', null, mpaaRating, null);
     }
 
     // Centralized "no rating" stream creation
