@@ -1858,7 +1858,7 @@ class ManifestService {
             id: 'imdb.ratings.local',
             version: '1.0.0',
             name: 'IMDb Ratings',
-            logo: 'https://res.cloudinary.com/dmrjmwaf1/image/upload/v1751826103/ChatGPT_Image_Jul_6_2025_12_14_35_PM_kffgrq_c_crop_w_700_h_700_lar0k3.png',
+            logo: 'https://raw.githubusercontent.com/kgenovz/stremio-ratings-v3/main/logo.png',
             description: 'Shows IMDb ratings for movies and individual TV episodes with a completely configurable format. Works with anime.',
             resources: ['stream'],
             types: ['movie', 'series'],
