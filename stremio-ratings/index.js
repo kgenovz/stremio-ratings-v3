@@ -202,8 +202,8 @@ class Utils {
             };
         }
 
-        // TMDB format: support both movie and series formats
-        const tmdbMatch = decodedId.match(/^tmdb:(\d+)(?::(\d+):(\d+))?$/);
+        // TMDB format: support both movie and series formats + alternate id catalogs
+        const tmdbMatch = decodedId.match(/^tmdb(?:c|-dice)?[:.-](\d+)(?::(\d+):(\d+))?$/);
         if (tmdbMatch) {
             const [, tmdbId, season, episode] = tmdbMatch;
             const isSeries = season && episode;
